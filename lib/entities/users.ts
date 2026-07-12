@@ -10,6 +10,7 @@ export const usersEntityConfig: EntityConfig = {
   schema: UserWriteSchema,
   defaultSort: { field: 'createdAt', order: 'desc' },
   search: { indexEnv: 'MEILISEARCH_USERS_INDEX' },
+  tenantScope: (orgId) => ({ orgId }),
   columns: [
     {
       key: 'name',
@@ -33,8 +34,9 @@ export const usersEntityConfig: EntityConfig = {
       type: 'select',
       options: [
         { label: 'Admin', value: 'ADMIN' },
-        { label: 'Moderator', value: 'MODERATOR' },
-        { label: 'User', value: 'USER' },
+        { label: 'Asset Manager', value: 'ASSET_MANAGER' },
+        { label: 'Department Head', value: 'DEPARTMENT_HEAD' },
+        { label: 'Employee', value: 'EMPLOYEE' },
       ],
       sortable: true,
       filterable: true,
@@ -42,25 +44,23 @@ export const usersEntityConfig: EntityConfig = {
       visibleByDefault: true,
     },
     {
-      key: 'location',
-      label: 'Location',
-      type: 'text',
-      filterable: true,
-      searchable: true,
-      visibleByDefault: false,
-    },
-    {
-      key: 'gender',
-      label: 'Gender',
+      key: 'status',
+      label: 'Status',
       type: 'select',
+      // "Pending Approval" is set only by the invite flow and cleared
+      // automatically once the invited user sets their password — included
+      // here so a pending row still renders/round-trips correctly in the
+      // directory table, not as something to hand-pick. The DB's
+      // User_password_or_pending_check constraint rejects any attempt to
+      // flip a still-passwordless user to Active from this form.
       options: [
-        { label: 'Male', value: 'Male' },
-        { label: 'Female', value: 'Female' },
-        { label: 'Other', value: 'Other' },
+        { label: 'Pending Approval', value: 'PENDING_APPROVAL' },
+        { label: 'Active', value: 'ACTIVE' },
+        { label: 'Inactive', value: 'INACTIVE' },
       ],
+      sortable: true,
       filterable: true,
-      searchable: true,
-      visibleByDefault: false,
+      visibleByDefault: true,
     },
     {
       key: 'createdAt',
@@ -72,12 +72,17 @@ export const usersEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'MODERATOR'],
-    create: ['ADMIN', 'MODERATOR'],
-    update: ['ADMIN', 'MODERATOR'],
+    read: ['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD'],
+    // No generic "create" here — the generic form has no path to a hashed
+    // password or an invite token, so it would silently create a
+    // permanently-unusable account (PENDING_APPROVAL, no password, no
+    // invite link ever sent). Account creation goes through /signup or
+    // POST /api/users/invite instead, both of which handle that properly.
+    create: [],
+    update: ['ADMIN', 'ASSET_MANAGER'],
     delete: ['ADMIN'],
   },
-  // Any signed-in Moderator can update a user's profile fields, but only an
+  // Any signed-in Asset Manager can update a user's profile fields, but only an
   // Admin can promote/demote a role — prevents a Moderator from granting
   // themselves (or anyone) Admin access.
   restrictedFields: {

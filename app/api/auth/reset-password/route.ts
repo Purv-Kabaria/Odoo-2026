@@ -42,16 +42,7 @@ export async function POST(req: Request) {
       return Api.badRequest("This reset link is invalid or expired");
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: resetToken.email },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return Api.badRequest("This reset link is invalid or expired");
-    }
-
-    const credential = hashPassword(password);
+    const { passwordHash } = hashPassword(password);
     const consumedAt = new Date();
     const transactionResult = await prisma.$transaction(async (tx) => {
       const consumed = await tx.passwordResetToken.updateMany({
@@ -65,16 +56,22 @@ export async function POST(req: Request) {
 
       if (consumed.count !== 1) return { consumed: false };
 
-      await tx.passwordCredential.upsert({
-        where: { userId: user.id },
-        update: credential,
-        create: {
-          userId: user.id,
-          ...credential,
-        },
+      // Setting a password IS accepting an invite: a still-pending user
+      // (admin-invited, no password) is promoted to Active in the same
+      // step. Password must be written first — the DB check constraint
+      // (passwordHash IS NOT NULL OR status = 'PENDING_APPROVAL') is
+      // evaluated per-statement, not deferred, so flipping status to
+      // Active before passwordHash is set would violate it.
+      await tx.user.update({
+        where: { id: resetToken.userId },
+        data: { passwordHash },
+      });
+      await tx.user.updateMany({
+        where: { id: resetToken.userId, status: 'PENDING_APPROVAL' },
+        data: { status: 'ACTIVE' },
       });
       await tx.authSession.deleteMany({
-        where: { userId: user.id },
+        where: { userId: resetToken.userId },
       });
 
       return { consumed: true };
@@ -84,7 +81,7 @@ export async function POST(req: Request) {
       return Api.badRequest("This reset link is invalid or expired");
     }
 
-    logger.info("auth.reset_password", { requestId, userId: user.id });
+    logger.info("auth.reset_password", { requestId, userId: resetToken.userId });
     return Api.ok({ message: "Password updated successfully" });
   } catch (error) {
     logger.error("auth.reset_password.failed", error, { requestId });

@@ -9,22 +9,20 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readApiResponse } from "@/lib/api-client";
 import { formatTableDate } from "@/lib/date-format";
-import type { ActivityAction, Prisma, UserRole } from "@prisma/client";
+import type { Prisma, Role } from "@prisma/client";
 
 type ActivityEvent = {
   id: string;
-  action: ActivityAction;
+  action: string;
   entityType: string;
-  entityId: string | null;
-  summary: string;
+  entityId: string;
   metadata: Prisma.JsonValue | null;
-  requestId: string | null;
   createdAt: string;
   actor: {
     id: string;
     name: string;
     email: string;
-    role: UserRole;
+    role: Role;
   } | null;
 };
 
@@ -34,11 +32,12 @@ type ActivityResponse = {
 
 const POLL_INTERVAL_MS = 15000;
 
-function actionLabel(action: ActivityAction): string {
+/** `action` is a free-text string, either "domain.verb" or "DOMAIN_VERB" (activityLog.create call sites use both) — title-case either for display. */
+function actionLabel(action: string): string {
   return action
     .toLowerCase()
-    .split("_")
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .split(/[._]/)
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
     .join(" ");
 }
 
@@ -128,7 +127,7 @@ export function ActivityFeed() {
           size="sm"
           disabled={isRefreshing}
           onClick={() => void loadActivity({ onlyNew: true })}
-          className="w-full cursor-pointer rounded-none sm:w-auto"
+          className="w-full cursor-pointer sm:w-auto"
         >
           <RefreshCw className={isRefreshing ? "size-4 animate-spin" : "size-4"} />
           Refresh
@@ -138,7 +137,7 @@ export function ActivityFeed() {
       {isLoading ? (
         <div className="grid gap-2">
           {Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton key={index} className="h-20 rounded-none" />
+            <Skeleton key={index} className="h-20" />
           ))}
         </div>
       ) : events.length === 0 ? (
@@ -158,7 +157,7 @@ export function ActivityFeed() {
             >
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary" className="rounded-none">
+                  <Badge variant="secondary">
                     {actionLabel(event.action)}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
@@ -166,7 +165,9 @@ export function ActivityFeed() {
                     {event.entityId ? `:${event.entityId.slice(0, 8)}` : ""}
                   </span>
                 </div>
-                <p className="text-sm font-medium text-foreground">{event.summary}</p>
+                <p className="text-sm font-medium text-foreground">
+                  {actionLabel(event.action)} — {event.entityType}
+                </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {event.actor ? `${event.actor.name} (${event.actor.role.toLowerCase()})` : "System"}
                 </p>

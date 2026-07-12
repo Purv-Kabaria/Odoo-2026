@@ -38,16 +38,25 @@ export async function POST(req: Request) {
     }
 
     const { name, email, password } = validation.data;
-    const credential = hashPassword(password);
+    const { passwordHash } = hashPassword(password);
+
+    // Public signup always creates an EMPLOYEE, never a self-elevated role,
+    // and always attaches to the org provisioned out-of-band — see
+    // AGENTS.md §6 and the problem statement's Screen 1 requirement.
+    // TODO(auth): single-org lookup is a placeholder until invite-based org
+    // assignment lands; flagged for whoever owns the signup flow.
+    const org = await prisma.organization.findFirst({ select: { id: true } });
+    if (!org) {
+      return Api.serviceUnavailable('No organization is set up yet');
+    }
 
     const user = await prisma.user.create({
       data: {
+        orgId: org.id,
         name,
         email,
-        role: 'USER',
-        credential: {
-          create: credential,
-        },
+        role: 'EMPLOYEE',
+        passwordHash,
       },
     });
     const session = await createSession(user.id, true);

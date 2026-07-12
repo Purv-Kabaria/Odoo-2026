@@ -4,11 +4,27 @@ import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import type { User } from "@prisma/client";
 
-const IdSchema = z.object({ id: z.string().cuid() });
+const IdSchema = z.object({ id: z.string().uuid() });
 
-function canDecide(role: string): boolean {
-  return role === "ADMIN" || role === "ASSET_MANAGER" || role === "DEPARTMENT_HEAD";
+// Mirrors approve/route.ts's canApproveTransfer — a Department Head may only
+// decide transfers whose current holder belongs to a department they head,
+// not any transfer org-wide.
+async function canDecideTransfer(
+  user: Pick<User, "id" | "role" | "orgId">,
+  fromEmployeeId: string | null,
+): Promise<boolean> {
+  if (user.role === "ADMIN" || user.role === "ASSET_MANAGER") return true;
+  if (user.role !== "DEPARTMENT_HEAD" || !fromEmployeeId) return false;
+
+  const holder = await prisma.user.findUnique({ where: { id: fromEmployeeId }, select: { departmentId: true } });
+  if (!holder?.departmentId) return false;
+
+  const headedDept = await prisma.department.findFirst({
+    where: { id: holder.departmentId, headId: user.id },
+  });
+  return Boolean(headedDept);
 }
 
 export async function POST(_req: Request, props: { params: Promise<{ id: string }> }) {
@@ -17,7 +33,6 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
   try {
     const user = await getCurrentUser();
     if (!user) return Api.unauthorized();
-    if (!canDecide(user.role)) return Api.forbidden();
 
     const params = await props.params;
     const idResult = IdSchema.safeParse(params);
@@ -28,6 +43,10 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
     });
     if (!transfer) return Api.notFound("Transfer request not found");
     if (transfer.status !== "REQUESTED") return Api.badRequest("This transfer has already been decided");
+
+    if (!(await canDecideTransfer(user, transfer.fromEmployeeId))) {
+      return Api.forbidden("You can only reject transfers within your own department");
+    }
 
     const result = await prisma.transferRequest.updateMany({
       where: { id: transfer.id, status: "REQUESTED" },
