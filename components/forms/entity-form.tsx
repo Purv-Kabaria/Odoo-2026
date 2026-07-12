@@ -57,10 +57,10 @@ export function EntityForm({ config, values, onChange, disabled }: EntityFormPro
                 onValueChange={(next) => setField(column.key, next)}
                 disabled={disabled}
               >
-                <SelectTrigger id={fieldId} className="cursor-pointer shadow-sm">
+                <SelectTrigger id={fieldId} className="cursor-pointer rounded-none shadow-sm">
                   <SelectValue placeholder={`Select ${column.label.toLowerCase()}...`} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-none">
                   {column.options?.map((option) => (
                     <SelectItem key={option.value} value={option.value} className="cursor-pointer">
                       {option.label}
@@ -86,7 +86,7 @@ export function EntityForm({ config, values, onChange, disabled }: EntityFormPro
                   setField(column.key, column.type === "number" ? (raw === "" ? null : Number(raw)) : raw);
                 }}
                 disabled={disabled}
-                className="shadow-sm"
+                className="rounded-none shadow-sm"
                 required
               />
             )}

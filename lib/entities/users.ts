@@ -33,9 +33,8 @@ export const usersEntityConfig: EntityConfig = {
       type: 'select',
       options: [
         { label: 'Admin', value: 'ADMIN' },
-        { label: 'Asset Manager', value: 'ASSET_MANAGER' },
-        { label: 'Department Head', value: 'DEPARTMENT_HEAD' },
-        { label: 'Employee', value: 'EMPLOYEE' },
+        { label: 'Moderator', value: 'MODERATOR' },
+        { label: 'User', value: 'USER' },
       ],
       sortable: true,
       filterable: true,
@@ -43,16 +42,25 @@ export const usersEntityConfig: EntityConfig = {
       visibleByDefault: true,
     },
     {
-      key: 'status',
-      label: 'Status',
+      key: 'location',
+      label: 'Location',
+      type: 'text',
+      filterable: true,
+      searchable: true,
+      visibleByDefault: false,
+    },
+    {
+      key: 'gender',
+      label: 'Gender',
       type: 'select',
       options: [
-        { label: 'Active', value: 'ACTIVE' },
-        { label: 'Inactive', value: 'INACTIVE' },
+        { label: 'Male', value: 'Male' },
+        { label: 'Female', value: 'Female' },
+        { label: 'Other', value: 'Other' },
       ],
-      sortable: true,
       filterable: true,
-      visibleByDefault: true,
+      searchable: true,
+      visibleByDefault: false,
     },
     {
       key: 'createdAt',
@@ -64,16 +72,14 @@ export const usersEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'ASSET_MANAGER'],
-    // No generic "create" here — a User row needs a hashed password and an
-    // orgId, neither of which this scalar-column form can produce safely;
-    // account creation goes through /signup instead.
-    create: [],
-    update: ['ADMIN', 'ASSET_MANAGER'],
+    read: ['ADMIN', 'MODERATOR'],
+    create: ['ADMIN', 'MODERATOR'],
+    update: ['ADMIN', 'MODERATOR'],
     delete: ['ADMIN'],
   },
-  // Only an Admin can promote/demote a role — the only role-assignment
-  // entry point per the problem statement (Screen 3 Tab C) and AGENTS.md §6.
+  // Any signed-in Moderator can update a user's profile fields, but only an
+  // Admin can promote/demote a role — prevents a Moderator from granting
+  // themselves (or anyone) Admin access.
   restrictedFields: {
     fields: ['role'],
     allowedRoles: ['ADMIN'],
