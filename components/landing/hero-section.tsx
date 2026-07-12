@@ -3,7 +3,10 @@
 import Link from "next/link"
 import { motion } from "framer-motion"
 import dynamic from "next/dynamic"
-const Player = dynamic(() => import("@lottiefiles/react-lottie-player").then((mod) => mod.Player), { ssr: false })
+const LottieLightPlayer = dynamic(
+  () => import("./lottie-light-player").then((mod) => mod.LottieLightPlayer),
+  { ssr: false },
+)
 import { Button } from "@/components/ui/button"
 import { ArrowRight, ChevronRight, LogIn } from "lucide-react"
 
@@ -81,7 +84,7 @@ export function HeroSection() {
             className="hidden lg:flex flex-1 w-full max-w-lg lg:max-w-none relative items-center justify-center"
           >
             <div className="w-full aspect-square md:aspect-video lg:aspect-square flex items-center justify-center p-4">
-              <Player
+              <LottieLightPlayer
                 src="/hero-animation.json"
                 loop
                 autoplay

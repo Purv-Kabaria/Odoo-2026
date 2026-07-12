@@ -45,8 +45,9 @@ export function CreateAuditCycleModal({
 
   React.useEffect(() => {
     if (!open) return;
-    fetch("/api/departments").then((r) => readApiResponse<{ data: Department[] }>(r, "Failed to load departments")).then((j) => setDepartments(j.data)).catch(() => undefined);
-    fetch("/api/users?limit=100").then((r) => readApiResponse<{ data: UserOption[] }>(r, "Failed to load users")).then((j) => setUsers(j.data)).catch(() => undefined);
+    const activeUsersFilter = JSON.stringify([{ field: "status", operator: "equals", value: "ACTIVE" }]);
+    fetch("/api/departments?limit=100").then((r) => readApiResponse<{ data: Department[] }>(r, "Failed to load departments")).then((j) => setDepartments(j.data)).catch(() => undefined);
+    fetch(`/api/users?limit=100&filters=${encodeURIComponent(activeUsersFilter)}`).then((r) => readApiResponse<{ data: UserOption[] }>(r, "Failed to load users")).then((j) => setUsers(j.data)).catch(() => undefined);
   }, [open]);
 
   const handleSubmit = async (event: React.FormEvent) => {

@@ -47,6 +47,8 @@ async function main() {
     { email: "employee3@assetflow.demo", name: "Ethan Employee", role: "EMPLOYEE" },
     { email: "employee4@assetflow.demo", name: "Ezra Employee", role: "EMPLOYEE" },
     { email: "employee5@assetflow.demo", name: "Elena Employee", role: "EMPLOYEE" },
+    { email: "employee6@assetflow.demo", name: "Farah Field", role: "EMPLOYEE" },
+    { email: "employee7@assetflow.demo", name: "Gabriel Grant", role: "EMPLOYEE" },
   ];
 
   const activeUsers = {};
@@ -58,7 +60,7 @@ async function main() {
     });
     activeUsers[def.email] = user;
   }
-  const [admin, manager, manager2, depthead, depthead2, employee, employee2, employee3, employee4, employee5] =
+  const [admin, manager, manager2, depthead, depthead2, employee, employee2, employee3, employee4, employee5, employee6, employee7] =
     activeUserDefs.map((d) => activeUsers[d.email]);
 
   // Admin-invited, not-yet-accepted users — no password, PENDING_APPROVAL.
@@ -112,6 +114,8 @@ async function main() {
   await prisma.user.update({ where: { id: employee2.id }, data: { departmentId: engineering.id } });
   await prisma.user.update({ where: { id: employee3.id }, data: { departmentId: facilities.id } });
   await prisma.user.update({ where: { id: employee4.id }, data: { departmentId: fieldOpsEast.id } });
+  await prisma.user.update({ where: { id: employee6.id }, data: { departmentId: fieldOpsEast.id } });
+  await prisma.user.update({ where: { id: employee7.id }, data: { departmentId: facilities.id } });
   // employee5 deliberately left unassigned — realistic edge case for department-scoped views.
 
   // ---------------------------------------------------------------------
@@ -150,7 +154,7 @@ async function main() {
   ]);
 
   // ---------------------------------------------------------------------
-  // Assets — 31 total, 26 individually-allocatable + 5 bookable
+  // Assets — 50 total, 42 individually-allocatable + 8 bookable
   // ---------------------------------------------------------------------
   async function nextTag() {
     const updated = await prisma.organization.update({
@@ -202,6 +206,27 @@ async function main() {
     // (Field Ops has no direct members — Field Ops — East is its only
     // populated child — so without this it would show a flat 0).
     { name: "Two-Way Radio Set", categoryId: itEquipment.id, condition: "GOOD", location: "Field Site 1", acquisitionDate: daysAgo(200), acquisitionCost: 300 }, // 30
+    // ---- Expansion batch: appended, never inserted mid-list, so every index
+    // referenced above (allocations/bookings/maintenance/audit) stays stable.
+    { name: "Surface Laptop Studio", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 2", acquisitionDate: daysAgo(150), acquisitionCost: 2100 }, // 31
+    { name: "Samsung 4K Monitor", categoryId: electronics.id, condition: "NEW", location: "HQ Floor 1", acquisitionDate: daysAgo(45), acquisitionCost: 500 }, // 32
+    { name: "Wireless Keyboard & Mouse Combo", categoryId: electronics.id, condition: "NEW", location: "Warehouse", acquisitionDate: daysAgo(20), acquisitionCost: 90 }, // 33
+    { name: "Canon DSLR Camera", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 3", acquisitionDate: daysAgo(300), acquisitionCost: 1400 }, // 34
+    { name: "Bose Conference Speaker", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 1", acquisitionDate: daysAgo(200), acquisitionCost: 350 }, // 35
+    { name: "Reception Desk", categoryId: furniture.id, condition: "FAIR", location: "HQ Floor 1", acquisitionDate: daysAgo(2100), acquisitionCost: 900 }, // 36
+    { name: "Lounge Sofa", categoryId: furniture.id, condition: "FAIR", location: "HQ Floor 2", acquisitionDate: daysAgo(900), acquisitionCost: 800 }, // 37
+    { name: "Break Room Table Set", categoryId: furniture.id, condition: "GOOD", location: "HQ Floor 2", acquisitionDate: daysAgo(500), acquisitionCost: 600 }, // 38
+    { name: "Honda Civic Pool Car", categoryId: vehicles.id, condition: "GOOD", location: "HQ Garage", acquisitionDate: daysAgo(600), acquisitionCost: 24000 }, // 39
+    { name: "Electric Scooter", categoryId: vehicles.id, condition: "NEW", location: "Warehouse", acquisitionDate: daysAgo(40), acquisitionCost: 1200 }, // 40
+    { name: "Firewall Appliance", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(400), acquisitionCost: 2200 }, // 41
+    { name: "Backup NAS Drive", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(250), acquisitionCost: 1500 }, // 42
+    { name: "Portable Hard Drive Set", categoryId: itEquipment.id, condition: "NEW", location: "Warehouse", acquisitionDate: daysAgo(30), acquisitionCost: 220 }, // 43
+    { name: "Label Printer", categoryId: officeSupplies.id, condition: "GOOD", location: "HQ Floor 3", acquisitionDate: daysAgo(180), acquisitionCost: 150 }, // 44
+    { name: "First Aid Kit Cabinet", categoryId: officeSupplies.id, condition: "NEW", location: "HQ Floor 1", acquisitionDate: daysAgo(60), acquisitionCost: 100 }, // 45
+    { name: "Coffee Machine", categoryId: officeSupplies.id, condition: "FAIR", location: "HQ Floor 2", acquisitionDate: daysAgo(700), acquisitionCost: 450 }, // 46
+    { name: "Huddle Room C3", categoryId: furniture.id, condition: "GOOD", location: "HQ Floor 2", isBookable: true, acquisitionDate: daysAgo(500), acquisitionCost: 0 }, // 47
+    { name: "Podcast Studio", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 3", isBookable: true, acquisitionDate: daysAgo(250), acquisitionCost: 3200 }, // 48
+    { name: "Delivery Scooter Fleet Unit 2", categoryId: vehicles.id, condition: "GOOD", location: "HQ Garage", isBookable: true, acquisitionDate: daysAgo(300), acquisitionCost: 1500 }, // 49
   ];
 
   const assets = [];
@@ -219,9 +244,10 @@ async function main() {
   // applied after insert so the assetDefs table above stays readable.
   const statusOverrides = {
     1: "ALLOCATED", 2: "ALLOCATED", 6: "ALLOCATED", 9: "ALLOCATED", 13: "ALLOCATED", 16: "ALLOCATED", 30: "ALLOCATED",
-    4: "UNDER_MAINTENANCE", 17: "UNDER_MAINTENANCE", 18: "UNDER_MAINTENANCE",
+    39: "ALLOCATED", 42: "ALLOCATED",
+    4: "UNDER_MAINTENANCE", 17: "UNDER_MAINTENANCE", 18: "UNDER_MAINTENANCE", 46: "UNDER_MAINTENANCE",
     24: "LOST",
-    12: "RETIRED", 11: "RETIRED",
+    12: "RETIRED", 11: "RETIRED", 36: "RETIRED",
   };
   for (const [idx, status] of Object.entries(statusOverrides)) {
     await prisma.asset.update({ where: { id: assets[Number(idx)].id }, data: { status } });
@@ -251,6 +277,25 @@ async function main() {
     });
   }
 
+  const fieldTechKit = await prisma.assetKit.upsert({
+    where: { orgId_name: { orgId: org.id, name: "Field Technician Kit" } },
+    update: {},
+    create: {
+      orgId: org.id,
+      name: "Field Technician Kit",
+      description: "Camera, scooter, and portable drive set for on-site field service visits.",
+      createdById: manager2.id,
+    },
+  });
+  const fieldTechKitAssetIdxs = [34, 40, 43];
+  for (const idx of fieldTechKitAssetIdxs) {
+    await prisma.assetKitItem.upsert({
+      where: { kitId_assetId: { kitId: fieldTechKit.id, assetId: assets[idx].id } },
+      update: {},
+      create: { kitId: fieldTechKit.id, assetId: assets[idx].id },
+    });
+  }
+
   // ---------------------------------------------------------------------
   // Allocations — active (matching ALLOCATED assets) + returned history
   // ---------------------------------------------------------------------
@@ -262,6 +307,8 @@ async function main() {
     { assetIdx: 13, toEmployeeId: employee4.id, allocatedById: manager2.id, expectedReturnDate: daysAgo(-5) }, // overdue-ish edge case: past due date already
     { assetIdx: 16, toDepartmentId: facilities.id, allocatedById: manager2.id },
     { assetIdx: 30, toDepartmentId: fieldOps.id, allocatedById: manager2.id },
+    { assetIdx: 39, toDepartmentId: facilities.id, allocatedById: manager2.id },
+    { assetIdx: 42, toEmployeeId: employee6.id, allocatedById: manager.id, expectedReturnDate: daysFromNow(45) },
   ];
   for (const def of activeAllocationDefs) {
     await prisma.allocation.create({
@@ -281,6 +328,8 @@ async function main() {
     { assetIdx: 5, toEmployeeId: employee2.id, allocatedById: manager.id, returnCondition: "GOOD", notes: "No longer needed" },
     { assetIdx: 10, toDepartmentId: engineering.id, allocatedById: manager2.id, returnCondition: "FAIR", notes: "Desk reassigned" },
     { assetIdx: 14, toEmployeeId: employee3.id, allocatedById: manager.id, returnCondition: "GOOD", notes: "Meeting room furniture consolidated" },
+    { assetIdx: 32, toEmployeeId: employee7.id, allocatedById: manager2.id, returnCondition: "GOOD", notes: "Upgraded to a larger display" },
+    { assetIdx: 37, toDepartmentId: engineering.id, allocatedById: manager.id, returnCondition: "FAIR", notes: "Lounge area rearranged" },
   ];
   for (const def of returnedAllocationDefs) {
     await prisma.allocation.create({
@@ -363,6 +412,16 @@ async function main() {
     { assetIdx: 27, bookedById: employee4.id, title: "Planning offsite", start: atHour(daysAgo(13), 9), end: atHour(daysAgo(13), 10), status: "COMPLETED" },
     { assetIdx: 28, bookedById: employee3.id, title: "Product walkthrough", start: atHour(daysAgo(8), 14), end: atHour(daysAgo(8), 15), status: "COMPLETED" },
     { assetIdx: 29, bookedById: employee5.id, title: "Warehouse run", start: atHour(daysAgo(20), 9), end: atHour(daysAgo(20), 11), status: "COMPLETED" },
+    // New bookable resources (47/48/49) from the expansion batch.
+    { assetIdx: 47, bookedById: employee6.id, title: "Field team huddle", start: atHour(daysAgo(5), 10), end: atHour(daysAgo(5), 10, 30), status: "COMPLETED" },
+    { assetIdx: 47, bookedById: employee7.id, title: "Facilities check-in", start: atHour(daysFromNow(1), 13), end: atHour(daysFromNow(1), 13, 30), status: "UPCOMING" },
+    { assetIdx: 47, bookedById: manager.id, title: "Vendor huddle", start: atHour(daysAgo(14), 15), end: atHour(daysAgo(14), 15, 30), status: "COMPLETED" },
+    { assetIdx: 48, bookedById: admin.id, title: "Product podcast recording", start: atHour(daysAgo(7), 11), end: atHour(daysAgo(7), 12, 30), status: "COMPLETED" },
+    { assetIdx: 48, bookedById: manager2.id, title: "Investor update recording", start: atHour(daysFromNow(3), 9), end: atHour(daysFromNow(3), 10), status: "UPCOMING" },
+    { assetIdx: 48, bookedById: employee2.id, title: "Internal AMA recording", start: atHour(daysAgo(22), 14), end: atHour(daysAgo(22), 15), status: "COMPLETED" },
+    { assetIdx: 49, bookedById: employee6.id, title: "Field delivery run", start: atHour(daysAgo(10), 8), end: atHour(daysAgo(10), 10), status: "COMPLETED" },
+    { assetIdx: 49, bookedById: employee4.id, title: "Site equipment drop-off", start: atHour(daysFromNow(4), 8), end: atHour(daysFromNow(4), 9), status: "UPCOMING" },
+    { assetIdx: 49, bookedById: depthead2.id, title: "Client site visit", start: atHour(daysAgo(15), 9), end: atHour(daysAgo(15), 11), status: "COMPLETED" },
   ];
   for (const def of bookingDefs) {
     await prisma.booking.create({
@@ -423,6 +482,28 @@ async function main() {
     data: {
       assetId: assets[8].id, raisedById: employee5.id, description: "Requesting a newer webcam model", priority: "LOW", createdAt: daysAgo(160),
       status: "REJECTED", approvedById: manager.id, approvedAt: daysAgo(157),
+    },
+  });
+  await prisma.maintenanceRequest.create({
+    data: { assetId: assets[41].id, raisedById: employee6.id, description: "Firmware update failing to apply", priority: "MEDIUM", createdAt: daysAgo(5) },
+  });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[44].id, raisedById: employee7.id, description: "Labels printing faded/misaligned", priority: "LOW",
+      status: "APPROVED", approvedById: manager2.id, createdAt: daysAgo(40), approvedAt: daysAgo(38),
+    },
+  });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[46].id, raisedById: employee2.id, description: "Machine won't heat water, breaker trips", priority: "MEDIUM",
+      status: "IN_PROGRESS", approvedById: manager.id, createdAt: daysAgo(60), approvedAt: daysAgo(58), technicianId: employee6.id,
+    },
+  });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[33].id, raisedById: employee4.id, description: "Mouse scroll wheel unresponsive", priority: "LOW",
+      status: "RESOLVED", approvedById: manager2.id, createdAt: daysAgo(110), approvedAt: daysAgo(108), technicianId: employee5.id,
+      resolvedAt: daysAgo(105), resolutionNotes: "Swapped for a spare from inventory",
     },
   });
 
@@ -540,6 +621,10 @@ async function main() {
     { action: "maintenance.resolved", entityType: "maintenance", entityId: assets[7].id, actorId: manager.id, metadata: { assetTag: assets[7].assetTag } },
     { action: "audit.cycle_closed", entityType: "audit_cycle", entityId: closedCycle.id, actorId: admin.id, metadata: { name: closedCycle.name } },
     { action: "audit.cycle_created", entityType: "audit_cycle", entityId: inProgressCycle.id, actorId: manager.id, metadata: { name: inProgressCycle.name } },
+    { action: "asset.registered", entityType: "asset", entityId: assets[31].id, actorId: manager2.id, metadata: { assetTag: assets[31].assetTag } },
+    { action: "kit.created", entityType: "asset_kit", entityId: fieldTechKit.id, actorId: manager2.id, metadata: { name: fieldTechKit.name } },
+    { action: "booking.confirmed", entityType: "booking", entityId: assets[48].id, actorId: admin.id, metadata: { assetTag: assets[48].assetTag } },
+    { action: "maintenance.raised", entityType: "maintenance", entityId: assets[41].id, actorId: employee6.id, metadata: { assetTag: assets[41].assetTag } },
   ];
   for (const def of activityDefs) {
     await prisma.activityLog.create({
@@ -551,11 +636,11 @@ async function main() {
   console.log(`Seeded org "${org.name}":`);
   console.log(`  ${activeUserDefs.length} active users, ${pendingDefs.length} pending-approval users`);
   console.log(`  4 departments (with 1 parent/child hierarchy), 5 asset categories`);
-  console.log(`  ${assets.length} assets (26 individually-allocatable + 5 bookable)`);
-  console.log(`  1 asset kit ("New Hire Kit", ${newHireKitAssetIdxs.length} assets)`);
+  console.log(`  ${assets.length} assets (42 individually-allocatable + 8 bookable)`);
+  console.log(`  2 asset kits ("New Hire Kit" ${newHireKitAssetIdxs.length} assets, "Field Technician Kit" ${fieldTechKitAssetIdxs.length} assets)`);
   console.log(`  ${activeAllocationDefs.length} active + ${returnedAllocationDefs.length} returned allocations, 3 transfer requests`);
-  console.log(`  ${bookingDefs.length} bookings, 7 maintenance requests, 2 audit cycles (1 closed + 1 in progress)`);
-  console.log(`  8 activity log entries`);
+  console.log(`  ${bookingDefs.length} bookings, 12 maintenance requests, 2 audit cycles (1 closed + 1 in progress)`);
+  console.log(`  ${activityDefs.length} activity log entries`);
   console.log(`Demo logins (password: ${DEMO_PASSWORD}):`);
   for (const def of activeUserDefs) console.log(`  ${def.email} — ${def.role}`);
   console.log(`Pending-approval users (no password yet): ${pendingDefs.map((d) => d.email).join(", ")}`);

@@ -100,10 +100,11 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
         setTransfers(transferJson.data);
       }
       if (canAllocate) {
-        const usersRes = await fetch("/api/users?limit=100");
+        const activeUsersFilter = JSON.stringify([{ field: "status", operator: "equals", value: "ACTIVE" }]);
+        const usersRes = await fetch(`/api/users?limit=100&filters=${encodeURIComponent(activeUsersFilter)}`);
         const usersJson = await readApiResponse<{ data: (Option & { role: string })[] }>(usersRes, "Failed to load employees");
         setEmployees(usersJson.data);
-        const deptRes = await fetch("/api/departments");
+        const deptRes = await fetch("/api/departments?limit=100");
         const deptJson = await readApiResponse<{ data: Option[] }>(deptRes, "Failed to load departments");
         setDepartments(deptJson.data);
       }

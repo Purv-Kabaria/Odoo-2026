@@ -41,7 +41,7 @@ export function InviteUserModal({ onSuccess, triggerClassName }: InviteUserModal
 
   React.useEffect(() => {
     if (!open) return;
-    fetch("/api/departments")
+    fetch("/api/departments?limit=100")
       .then((res) => readApiResponse<{ data: Department[] }>(res, "Failed to load departments"))
       .then((json) => setDepartments(json.data))
       .catch(() => undefined);

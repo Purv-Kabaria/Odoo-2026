@@ -35,8 +35,13 @@ export type EntityColumn = {
   visibleByDefault?: boolean;
   /** Whether the column appears in create/edit forms. Defaults to true. */
   editable?: boolean;
-  /** Custom display formatting for the table cell (e.g. cents -> "$12.34"). */
-  format?: (value: unknown) => string;
+  /**
+   * Custom display formatting for the table cell (e.g. cents -> "$12.34").
+   * `row` is the full record — needed for columns like a foreign key whose
+   * raw value (an id) isn't what should be displayed; the API attaches a
+   * resolved display field (e.g. `headName`) to the row for that case.
+   */
+  format?: (value: unknown, row?: Record<string, unknown>) => string;
 };
 
 export type EntityAction = 'read' | 'create' | 'update' | 'delete';

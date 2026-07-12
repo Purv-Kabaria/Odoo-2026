@@ -67,9 +67,12 @@ function defaultVisibleColumns(config: EntityConfig): Set<string> {
   return new Set(config.columns.filter((column) => column.visibleByDefault !== false).map((column) => column.key));
 }
 
-function renderCellValue(column: EntityColumn, value: unknown): string {
+function renderCellValue(column: EntityColumn, value: unknown, row?: EntityRow): string {
+  // A format callback may resolve its display text from a sibling field on
+  // `row` (e.g. a foreign-key column showing a joined name) rather than
+  // from its own value, so it runs before the blanket null/empty check.
+  if (column.format) return column.format(value, row) || "-";
   if (value === null || value === undefined || value === "") return "-";
-  if (column.format) return column.format(value);
   if (column.type === "date") return formatTableDate(value as string);
   if (column.type === "boolean") return value ? "Yes" : "No";
   if (column.type === "select") {
@@ -315,7 +318,7 @@ export function EntityDataTable({ config, currentUserRole }: EntityDataTableProp
   const tableColumns: ColumnDef<EntityRow>[] = [
     ...activeColumns.map((column) => ({
       header: column.label,
-      cell: (row: EntityRow) => renderCellValue(column, row[column.key]),
+      cell: (row: EntityRow) => renderCellValue(column, row[column.key], row),
     })),
     {
       header: "Actions",
@@ -526,7 +529,7 @@ export function EntityDataTable({ config, currentUserRole }: EntityDataTableProp
                   {activeColumns.map((column) => (
                     <div key={column.key} className="flex justify-between gap-2 text-xs">
                       <span className="text-muted-foreground">{column.label}</span>
-                      <span className="truncate font-medium">{renderCellValue(column, row[column.key])}</span>
+                      <span className="truncate font-medium">{renderCellValue(column, row[column.key], row)}</span>
                     </div>
                   ))}
                   <div className="flex justify-end pt-1">
@@ -645,7 +648,7 @@ export function EntityDataTable({ config, currentUserRole }: EntityDataTableProp
             {config.columns.map((column) => (
               <div key={column.key} className="flex items-center justify-between gap-3">
                 <span className="field-label text-muted-foreground">{column.label}</span>
-                <span className="field-value font-medium">{renderCellValue(column, viewRow[column.key])}</span>
+                <span className="field-value font-medium">{renderCellValue(column, viewRow[column.key], viewRow)}</span>
               </div>
             ))}
           </div>

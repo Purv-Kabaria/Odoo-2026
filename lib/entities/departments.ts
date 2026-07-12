@@ -24,12 +24,16 @@ export const departmentsEntityConfig: EntityConfig = {
       label: 'Head',
       type: 'text',
       visibleByDefault: true,
+      // The API attaches `headName` (resolved via a Prisma `include`) since
+      // the raw value here is just an id — see app/api/departments/route.ts.
+      format: (value, row) => (value ? ((row?.headName as string | null) ?? 'Unknown') : ''),
     },
     {
       key: 'parentDepartmentId',
       label: 'Parent department',
       type: 'text',
       visibleByDefault: true,
+      format: (value, row) => (value ? ((row?.parentDepartmentName as string | null) ?? 'Unknown') : ''),
     },
     {
       key: 'status',

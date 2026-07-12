@@ -35,7 +35,8 @@ export function AssignTechnicianModal({
 
   React.useEffect(() => {
     if (!open) return;
-    fetch("/api/users?limit=100")
+    const activeUsersFilter = JSON.stringify([{ field: "status", operator: "equals", value: "ACTIVE" }]);
+    fetch(`/api/users?limit=100&filters=${encodeURIComponent(activeUsersFilter)}`)
       .then((res) => readApiResponse<{ data: UserOption[] }>(res, "Failed to load users"))
       .then((json) => setUsers(json.data))
       .catch(() => undefined);
