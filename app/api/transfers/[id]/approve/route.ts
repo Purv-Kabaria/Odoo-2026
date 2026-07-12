@@ -8,7 +8,7 @@ import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { z } from "zod";
 import type { User } from "@prisma/client";
 
-const IdSchema = z.object({ id: z.string().cuid() });
+const IdSchema = z.object({ id: z.string().uuid() });
 
 async function canApproveTransfer(
   user: Pick<User, "id" | "role" | "orgId">,

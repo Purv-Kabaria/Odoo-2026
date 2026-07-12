@@ -2,11 +2,11 @@ import { z } from "zod";
 
 export const BookingCreateSchema = z
   .object({
-    assetId: z.string().cuid(),
+    assetId: z.string().uuid(),
     title: z.string().trim().max(140).optional().nullable(),
     startTime: z.coerce.date(),
     endTime: z.coerce.date(),
-    onBehalfOfDeptId: z.string().cuid().optional().nullable(),
+    onBehalfOfDeptId: z.string().uuid().optional().nullable(),
   })
   .refine((data) => data.endTime > data.startTime, {
     message: "End time must be after start time",

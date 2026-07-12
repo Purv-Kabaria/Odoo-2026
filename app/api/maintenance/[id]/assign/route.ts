@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { MaintenanceAssignSchema } from "@/types/maintenance-types";
 import { z } from "zod";
 
-const IdSchema = z.object({ id: z.string().cuid() });
+const IdSchema = z.object({ id: z.string().uuid() });
 
 function canAssign(role: string): boolean {
   return role === "ADMIN" || role === "ASSET_MANAGER";
