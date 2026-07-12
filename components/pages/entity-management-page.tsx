@@ -5,11 +5,11 @@ import { AlertCircle } from "lucide-react";
 import { EntityDataTable } from "@/components/tables/entity-data-table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { getEntityConfig } from "@/lib/entities/registry";
-import type { UserRole } from "@prisma/client";
+import type { Role } from "@prisma/client";
 
 type EntityManagementPageProps = {
   entityKey: string;
-  currentUserRole: UserRole;
+  currentUserRole: Role;
 };
 
 export function EntityManagementPage({

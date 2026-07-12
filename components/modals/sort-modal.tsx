@@ -135,7 +135,7 @@ function SortModalContent({
   }
 
   return (
-    <DialogContent className="w-[95vw] sm:max-w-[600px] rounded-none p-0 sm:w-full overflow-visible">
+    <DialogContent className="w-[95vw] sm:max-w-[600px] p-0 sm:w-full overflow-visible">
       <div className="p-6">
         <DialogHeader className="mb-6">
           <DialogTitle>Advanced Sorting</DialogTitle>
@@ -176,10 +176,10 @@ function SortModalContent({
                     value={sort.sortBy}
                     onValueChange={(val) => handleUpdateSort(sort.id, "sortBy", val)}
                   >
-                    <SelectTrigger className="w-full rounded-none bg-background shadow-sm h-9 cursor-pointer">
+                    <SelectTrigger className="w-full bg-background shadow-sm h-9 cursor-pointer">
                       <SelectValue placeholder="Select column" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-none">
+                    <SelectContent>
                       {columns.map((col) => (
                         <SelectItem
                           key={col.key}
@@ -197,7 +197,7 @@ function SortModalContent({
                     <Button
                       variant={sort.sortOrder === "asc" ? "default" : "outline"}
                       size="sm"
-                      className="flex-1 sm:flex-none rounded-none shadow-sm h-9 px-3 cursor-pointer"
+                      className="flex-1 sm:flex-none shadow-sm h-9 px-3 cursor-pointer"
                       onClick={() => handleUpdateSort(sort.id, "sortOrder", "asc")}
                     >
                       <ArrowUp className="h-4 w-4" />
@@ -205,7 +205,7 @@ function SortModalContent({
                     <Button
                       variant={sort.sortOrder === "desc" ? "default" : "outline"}
                       size="sm"
-                      className="flex-1 sm:flex-none rounded-none shadow-sm h-9 px-3 cursor-pointer"
+                      className="flex-1 sm:flex-none shadow-sm h-9 px-3 cursor-pointer"
                       onClick={() => handleUpdateSort(sort.id, "sortOrder", "desc")}
                     >
                       <ArrowDown className="h-4 w-4" />
@@ -213,7 +213,7 @@ function SortModalContent({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="rounded-none h-9 w-9 p-0 text-muted-foreground hover:text-destructive cursor-pointer ml-1"
+                      className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive cursor-pointer ml-1"
                       onClick={() => handleRemoveSort(sort.id)}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -227,7 +227,7 @@ function SortModalContent({
 
         <Button
           variant="outline"
-          className="w-full mt-4 rounded-none border-dashed border-2 cursor-pointer h-10"
+          className="w-full mt-4 border-dashed border-2 cursor-pointer h-10"
           onClick={handleAddSort}
           disabled={sorts.length >= maxSortRules}
         >
@@ -240,7 +240,7 @@ function SortModalContent({
           type="button"
           variant="ghost"
           onClick={handleClear}
-          className="rounded-none cursor-pointer text-muted-foreground hover:text-foreground"
+          className="cursor-pointer text-muted-foreground hover:text-foreground"
         >
           Clear All
         </Button>
@@ -249,14 +249,14 @@ function SortModalContent({
             type="button"
             variant="outline"
             onClick={onClose}
-            className="rounded-none cursor-pointer flex-1 sm:flex-none"
+            className="cursor-pointer flex-1 sm:flex-none"
           >
             Cancel
           </Button>
           <Button
             type="button"
             onClick={handleApply}
-            className="rounded-none cursor-pointer flex-1 sm:flex-none ml-2"
+            className="cursor-pointer flex-1 sm:flex-none ml-2"
           >
             Apply Rules
           </Button>
