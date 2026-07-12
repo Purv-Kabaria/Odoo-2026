@@ -48,30 +48,23 @@ export async function POST(req: Request) {
 
     const { passwordHash } = hashPassword(password);
 
-    // Bootstrap logic: if this is the very first user in the system,
-    // automatically make them an active admin so they can set up the organization.
-    const userCount = await prisma.user.count();
-    const isFirstUser = userCount === 0;
-
     const user = await prisma.user.create({
       data: {
         orgId: org.id,
         name,
         email,
         passwordHash,
-        role: isFirstUser ? "ADMIN" : "EMPLOYEE",
-        status: isFirstUser ? "ACTIVE" : "PENDING_APPROVAL",
+        role: "EMPLOYEE",
+        status: "PENDING_APPROVAL",
       },
       select: { id: true, name: true, email: true, role: true, status: true },
     });
 
     logger.info("auth.signup", { requestId, userId: user.id, orgId: org.id });
 
-    // No session issued — user must log in.
+    // No session issued — user must be approved by an admin first.
     return Api.created({
-      message: isFirstUser 
-        ? "Admin account created successfully. You may now sign in."
-        : "Account created. An administrator must approve your account before you can sign in.",
+      message: "Account created. An administrator must approve your account before you can sign in.",
       user: {
         id: user.id,
         name: user.name,
