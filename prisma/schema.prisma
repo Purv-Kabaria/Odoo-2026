@@ -115,11 +115,6 @@ enum NotificationType {
   TRANSFER_REJECTED
   MAINTENANCE_APPROVED
   MAINTENANCE_REJECTED
-  // No dedicated notify moment in the original API design (which only
-  // documents approve/reject) — added for the technician-assignment and
-  // resolution steps of the maintenance workflow.
-  MAINTENANCE_TECHNICIAN_ASSIGNED
-  MAINTENANCE_RESOLVED
   BOOKING_CONFIRMED
   BOOKING_CANCELLED
   BOOKING_REMINDER
@@ -381,11 +376,6 @@ model Booking {
   endTime          DateTime
   status           BookingStatus @default(UPCOMING)
   reminderSentAt   DateTime?
-  // Only Booking gets a check-in concept — a scheduled session someone
-  // should show up for. Allocation has no analogous "arrival" step
-  // anywhere in the spec; an allocation is considered delivered the
-  // moment it's created.
-  checkedIn        Boolean       @default(false)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -408,20 +398,26 @@ model Booking {
 // ---------------------------------------------------------------------------
 
 model MaintenanceRequest {
-  id              String              @id @default(uuid(7)) @db.Uuid
-  assetId         String              @db.Uuid
-  raisedById      String              @db.Uuid
-  approvedById    String?             @db.Uuid
-  technicianId    String?             @db.Uuid
-  description     String
-  priority        MaintenancePriority @default(MEDIUM)
-  status          MaintenanceStatus   @default(PENDING)
-  photoUrl        String?
-  resolutionNotes String?
-  approvedAt      DateTime?
-  resolvedAt      DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id                    String              @id @default(uuid(7)) @db.Uuid
+  assetId               String              @db.Uuid
+  raisedById            String              @db.Uuid
+  approvedById          String?             @db.Uuid
+  technicianId          String?             @db.Uuid
+  description           String
+  priority              MaintenancePriority @default(MEDIUM)
+  status                MaintenanceStatus   @default(PENDING)
+  photoUrl              String?
+  resolutionNotes       String?
+  approvedAt            DateTime?
+  resolvedAt            DateTime?
+  // Populated by a best-effort LLM call on resolve (or a manual re-analyze
+  // request) — never required for the request's own lifecycle, so all three
+  // stay nullable. See lib/maintenance-retirement.ts.
+  aiRecommendRetirement Boolean?
+  aiRecommendReason     String?
+  aiRecommendedAt       DateTime?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
   asset      Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
   raisedBy   User  @relation("MaintenanceRaiser", fields: [raisedById], references: [id])

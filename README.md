@@ -1,332 +1,369 @@
-# Odoo Template
+# AssetFlow
 
-A fast-paced, production-minded Next.js 16 template for building authenticated CRUD apps, admin panels, moderator tooling, user dashboards, object storage workflows, and LLM-backed features. It ships with PostgreSQL, Prisma, Redis cache/rate limits/idempotency, Meilisearch search, S3-compatible object storage, Loki-ready structured logging, secure session auth, RBAC, polished responsive UI, and scripts for wiping, seeding, and indexing local data.
+**AssetFlow** is an enterprise asset-management system: register and track physical assets, allocate them to employees or departments, resolve allocation conflicts through transfer requests, book shared resources on a conflict-free calendar, run an AI-assisted maintenance workflow, audit inventory against expected holders, and report on utilization and spend — all behind real session auth and role-based access control.
 
-There is intentionally no CI/CD, no test runner, no Husky, no lint-staged, and no commitlint. The template is optimized for rapid local iteration: run the app, inspect it, and use `pnpm lint`, `pnpm typecheck`, and `pnpm build` when you want a manual quality gate.
+Built on Next.js 16, Prisma 6, and PostgreSQL, with Redis, Meilisearch, and S3-compatible object storage baked in as optional accelerators (never hard dependencies). There is intentionally no CI/CD, no test runner, no Husky, no lint-staged, and no commitlint — this project is optimized for fast local iteration: run the app, click through it, and use `pnpm lint`, `pnpm typecheck`, and `pnpm build` as your manual quality gate before committing.
 
-For implementation-level decisions, read [`docs/low-level-design.md`](./docs/low-level-design.md). It documents schema choices, indexing, session management, RBAC, Redis caching/rate limiting/idempotency, object storage, Meilisearch fallback, LLM API design, and extension rules.
+> **Demoing this?** See [`docs/demo-script.md`](./docs/demo-script.md) for a 5-minute, screen-recording-ready walkthrough of every screen and its edge cases.
 
-## Evaluation Priorities
+## Table of contents
 
-This template is tuned for projects evaluated on database design first, then backend correctness, modularity, frontend quality, performance, scalability, security, usability, and debuggability.
+- [Screens](#screens)
+- [Feature tour](#feature-tour)
+- [Architecture](#architecture)
+- [Database design](#database-design)
+- [Why these choices? (caching, search, indexing)](#why-these-choices-caching-search-indexing)
+- [Stack](#stack)
+- [Local setup](#local-setup)
+- [Demo logins](#demo-logins)
+- [Day-to-day commands](#day-to-day-commands)
+- [Project structure](#project-structure)
+- [Security model](#security-model)
+- [Manual quality gates](#manual-quality-gates)
 
-- Data models should be normalized, indexed for actual query shapes, constrained at the database layer where Prisma cannot express invariants, and documented in migrations.
-- Backend APIs should validate every boundary, return consistent envelopes, handle rate limits/idempotency, and degrade optional infrastructure without hiding real failures.
-- Dynamic data should prefer durable local primitives first. The activity stream is backed by Postgres and lightweight polling, avoiding extra third-party realtime services by default.
-- UI should be clean, compact, responsive, and token-driven, with obvious loading, empty, error, hover, focus, and disabled states.
-- External APIs should be minimal and replaceable. LLM calls are isolated behind one OpenAI-compatible proxy rather than scattered through components.
+## Screens
+
+| | |
+| --- | --- |
+| ![Asset Directory](./docs/screenshots/01-asset-directory.png) **Asset Directory** — search, filter, and register assets with auto-generated tags. | ![Allocation & Transfer](./docs/screenshots/02-allocation-transfer.png) **Allocation & Transfer** — allocate to an employee or department; conflicts route straight into a transfer request. |
+| ![Resource Booking](./docs/screenshots/03-resource-booking.png) **Resource Booking** — day-timeline calendar with a live conflict preview before you submit. | ![Maintenance Kanban](./docs/screenshots/04-maintenance-kanban.png) **Maintenance Kanban** — drag-and-drop board with AI retirement recommendations and a one-click Verify & Retire action. |
+| ![Audit Cycles](./docs/screenshots/05-audit-cycles.png) **Audit Cycles** — scope an audit, verify assets, auto-raise maintenance on damage. | ![Reports](./docs/screenshots/06-reports-dashboard.png) **Reports** — KPIs, charts, and compact-by-default tables with a Vercel-style expand toggle. |
+| ![Admin panel](./docs/screenshots/07-admin.png) **Admin** — role management, org-wide entity control. | ![Notifications](./docs/screenshots/08-notifications.png) **Notifications** — live, categorized, pushed over SSE. |
+| ![Maintenance on mobile](./docs/screenshots/09-maintenance-mobile.png) **Fully responsive** — the Kanban board (the hardest layout to shrink) at 390px wide. | ![Users directory](./docs/screenshots/10-users.png) **Users** — the generic entity-CRUD engine, reused across Users/Organizations/Departments. |
+
+## Feature tour
+
+| Screen | What it does |
+| --- | --- |
+| **Auth** | Self-signup goes to `PENDING_APPROVAL` until an Admin approves it; an admin-issued invite auto-activates on password set (inviting a specific person *is* the vetting step). Session cookies are opaque random tokens, hashed at rest, `httpOnly`. |
+| **Admin / Users** | Manage users, roles, and org/department membership; approve pending signups; invite new users by email (Nodemailer, console-mock if SMTP isn't configured). |
+| **Asset Directory** | Register assets (auto-generated `AF-####` tags, race-safe under concurrent registration), category-specific custom fields, photo upload, full-text + fuzzy search, filter by category/status/department/location. |
+| **Allocation & Transfer** | Allocate an asset to an employee or department; attempting to double-allocate surfaces a conflict banner naming the current holder, with a one-click transfer request instead of a raw error. Transfers are approved by a Department Head (scoped to their own department) or an Asset Manager/Admin. |
+| **Resource Booking** | Book shared/bookable assets (meeting rooms, vehicles, equipment) on a day timeline with a live conflict preview; overlap is enforced by a Postgres GiST exclusion constraint, not just an app-layer check. |
+| **Maintenance** | Drag-and-drop Kanban (Pending → Approved → Technician Assigned → In Progress → Resolved, plus a computed Retired column) built with `dnd-kit`. Resolving a request fires a non-blocking LLM call that evaluates acquisition cost, maintenance history, and the issue description, and flags assets worth retiring; a manager-only "Verify & Retire" action closes the loop by globally retiring the asset. |
+| **Audit Cycles** | Scope an audit to a department or location, assign auditors, verify assets against expected holders, and auto-raise a maintenance request when an item is found damaged. |
+| **Reports** | Org-wide KPIs, utilization by department, maintenance frequency, most-used/idle/near-retirement assets, spend by category, and a booking heatmap — Redis-cached with a short TTL, CSV export per section, tables compact-by-default with a Vercel-dashboard-style expand toggle per table. |
+| **Notifications** | Per-user notification bell + panel (assignment/approval/booking/alert/info categories), pushed live over SSE via Redis pub/sub, backed by a durable Postgres table so nothing's lost if you weren't connected when it fired. |
+| **Voice input** | Native Web Speech API dictation (mic button, live transcription, append-mode, graceful degradation with a toast when unsupported or denied) — built as one reusable hook + button, wired into the maintenance issue description and the asset-return condition notes. |
+
+Role model: `ADMIN` (everything) > `ASSET_MANAGER` (assets/allocations/bookings/maintenance/reports, org-wide) > `DEPARTMENT_HEAD` (approvals scoped to their own department) > `EMPLOYEE` (self-service booking, raising maintenance, viewing their own allocations).
+
+### In progress (teammate branches, not yet merged)
+
+These are part of the product spec and actively being built by other contributors — listed here so the feature set is honestly complete, not because they're live in `main` yet:
+
+- **Asset Kits (bulk allocation)** — reusable kits of multiple assets, allocated as one action; validates every asset is available before committing, blocks the whole operation and names the conflicting asset if not, and records allocation history per individual asset.
+- **QR Code Search & Filtering** — a camera-based QR scanner in the Asset Directory (with proper permission handling) that populates the search bar and filters straight to the matching asset instead of typing a tag/serial by hand. (`feat/qr-code` on the remote — in progress.)
+- **15-Minute Check-In & Auto-Release** — bookings require a check-in within 15 minutes of the start time, with a reminder and a 5-minute grace period, after which an uncompleted check-in auto-cancels the booking and releases the asset.
+- **Ctrl+K Global Search** — a Meilisearch-powered command palette (`Ctrl`/`Cmd`+`K`) searching across assets, employees, departments, and other entities at once, with grouped results and full keyboard navigation.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Client["Browser"]
+        UI["Next.js App Router UI\nServer Components by default,\n'use client' pushed to leaves"]
+    end
+
+    subgraph Edge["Edge"]
+        Proxy["proxy.ts\ncheap cookie-presence redirect\n(UX only, never the authz boundary)"]
+    end
+
+    subgraph App["Next.js server (Node runtime)"]
+        Layout["app/(protected)/layout.tsx\ngetCurrentUser() — the REAL authz boundary"]
+        Routes["Route handlers\napp/api/**/route.ts"]
+        Api["lib/api.ts\nconsistent { data } / { error } envelope"]
+        Lib["lib/*\nauth, resilience, logger,\nquery builders, adapters"]
+    end
+
+    subgraph Data["Durable & accelerator dependencies"]
+        PG[("PostgreSQL\nsource of truth")]
+        Redis[("Redis\ncache-aside, rate limits,\nidempotency, pub/sub")]
+        Meili[("Meilisearch\ntypo-tolerant search")]
+        S3[("S3 / MinIO\nasset photos & documents")]
+        LLM["LLM proxy\nOpenAI-compatible,\ntimeout+retry+circuit-breaker"]
+    end
+
+    UI -->|request| Proxy --> Layout --> Routes
+    Routes --> Api
+    Routes --> Lib
+    Lib -->|always| PG
+    Lib -.->|optional, fails soft| Redis
+    Lib -.->|optional, Postgres fallback| Meili
+    Lib -.->|optional, 503 if down| S3
+    Lib -.->|optional, 503 if down| LLM
+    Redis -.->|SSE push| UI
+```
+
+**The one rule that matters most**: only Postgres is a hard dependency. Every other box in that diagram — Redis, Meilisearch, S3, the LLM — is an accelerator with an explicit degrade path (see [Why these choices](#why-these-choices-caching-search-indexing) below). `proxy.ts` runs on the Edge runtime and does a cheap cookie-presence check for a fast redirect; it is **never** trusted as the real authorization boundary — every protected page and API route re-verifies the session against the database on every request.
+
+## Database design
+
+All 20 tables scoped under one multi-tenant root (`Organization`). UUIDv7 primary keys everywhere (sortable-enough, collision-resistant, don't leak sequential volume like an auto-increment int would), stored as native Postgres `uuid` columns rather than `text` for smaller storage and faster index comparisons.
+
+```mermaid
+erDiagram
+    ORGANIZATION ||--o{ USER : employs
+    ORGANIZATION ||--o{ DEPARTMENT : has
+    ORGANIZATION ||--o{ ASSET_CATEGORY : defines
+    ORGANIZATION ||--o{ ASSET : owns
+    ORGANIZATION ||--o{ AUDIT_CYCLE : runs
+    ORGANIZATION ||--o{ ACTIVITY_LOG : logs
+
+    DEPARTMENT ||--o{ USER : contains
+    DEPARTMENT |o--o{ DEPARTMENT : "parent of"
+    USER |o--o{ DEPARTMENT : heads
+
+    ASSET_CATEGORY ||--o{ ASSET : classifies
+
+    ASSET ||--o{ ALLOCATION : "allocated via"
+    ASSET ||--o{ TRANSFER_REQUEST : "transferred via"
+    ASSET ||--o{ BOOKING : "booked via"
+    ASSET ||--o{ MAINTENANCE_REQUEST : "serviced via"
+    ASSET ||--o{ AUDIT_ITEM : "checked via"
+
+    USER ||--o{ ALLOCATION : holds
+    USER ||--o{ TRANSFER_REQUEST : requests
+    USER ||--o{ BOOKING : books
+    USER ||--o{ MAINTENANCE_REQUEST : raises
+    USER ||--o{ NOTIFICATION : receives
+    USER ||--o{ AUDIT_ASSIGNMENT : "assigned as auditor"
+
+    AUDIT_CYCLE ||--o{ AUDIT_ASSIGNMENT : has
+    AUDIT_CYCLE ||--o{ AUDIT_ITEM : contains
+    AUDIT_CYCLE ||--o| DISCREPANCY_REPORT : generates
+
+    ORGANIZATION {
+        uuid id PK
+        string slug UK
+        int assetSeq "monotonic AF-#### counter"
+    }
+    USER {
+        uuid id PK
+        uuid orgId FK
+        string email UK
+        string passwordHash "nullable until invite accepted"
+        enum role
+        enum status
+    }
+    ASSET {
+        uuid id PK
+        uuid orgId FK
+        uuid categoryId FK
+        string assetTag "AF-0001, unique per org"
+        enum status
+        decimal acquisitionCost
+        json customFields "keyed to category.fieldSchema"
+    }
+    ALLOCATION {
+        uuid id PK
+        uuid assetId FK
+        uuid toEmployeeId FK "XOR with toDepartmentId"
+        uuid toDepartmentId FK
+        enum status
+    }
+    BOOKING {
+        uuid id PK
+        uuid assetId FK
+        timestamp startTime
+        timestamp endTime
+        enum status
+    }
+    MAINTENANCE_REQUEST {
+        uuid id PK
+        uuid assetId FK
+        enum status
+        boolean aiRecommendRetirement "nullable, LLM-populated"
+        string aiRecommendReason
+    }
+    AUDIT_ITEM {
+        uuid id PK
+        uuid cycleId FK
+        uuid assetId FK
+        enum verification
+    }
+```
+
+*(`TransferRequest`, `AuditAssignment`, `DiscrepancyReport`, `Notification`, `ActivityLog`, `AuthSession`, and `PasswordResetToken` exist in the real schema — [`prisma/schema.prisma`](./prisma/schema.prisma) is the full source of truth; this diagram keeps the core relationships readable rather than reproducing all 20 tables.)*
+
+**Invariants Prisma's schema syntax can't express live in hand-written migration SQL, not just in application code** — the database is the actual enforcement layer, application checks are a fast-path UX nicety on top:
+
+- `Allocation`: a partial unique index (`WHERE status = 'ACTIVE'`) makes double-allocation structurally impossible, not just checked-for.
+- `Allocation`: a `CHECK` constraint enforces "exactly one of `toEmployeeId`/`toDepartmentId`" — never both, never neither.
+- `Booking`: a GiST exclusion constraint (`EXCLUDE USING gist (assetId WITH =, tsrange(startTime, endTime, '[)') WITH &&)`) makes overlapping bookings for the same asset structurally impossible under concurrent writes — an app-layer "check then insert" would have a race window, this doesn't.
+- `User`: a `CHECK` constraint enforces that any non-`PENDING_APPROVAL` user must have a password set.
+- `AuditCycle`: a `CHECK` constraint enforces `endDate >= startDate` and "scope is at most one of department/location."
+
+## Why these choices? (caching, search, indexing)
+
+### Indexing
+
+Every foreign key gets an explicit index — Postgres does **not** auto-index FK columns (only the referenced side gets one), so `@@index([xId])` is added by hand on every relation. Composite indexes are built to match actual query shape, equality filters first then the sort/range column last (e.g. `@@index([orgId, status, createdAt])` serves "filter by status within an org, sorted newest-first" as a single index scan, not two). `Asset` additionally carries a `pg_trgm` GIN index on `name` for fuzzy search when Meilisearch is the primary path but Postgres needs to answer directly, and `Allocation` has a **partial** index (`WHERE returnedAt IS NULL`) for the overdue-returns sweep — narrowing to only open allocations before the date comparison, since `now()` isn't `IMMUTABLE` and can't appear directly in an index predicate.
+
+### Caching (Redis, cache-aside)
+
+List endpoints (entity tables, the Reports dashboard) use a cache-aside pattern: check Redis first, and on a miss, query Postgres and populate the cache with a short TTL. Cache keys are composed from entity + role + page + limit + search + filters + sorts, so two different views never collide. **Redis is never authoritative** — every write path that could stale the cache invalidates the relevant key prefix immediately after the database commit, and every Redis read/write is wrapped so a down Redis instance just means "always a cache miss," never a broken response. This matters because a demo running with `docker compose up -d` might have Redis flake or not be started at all — the app should never notice.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant R as Route handler
+    participant Cache as Redis
+    participant DB as PostgreSQL
+
+    C->>R: GET /api/reports
+    R->>Cache: getJsonCache(key)
+    alt cache hit
+        Cache-->>R: cached payload
+        R-->>C: 200 (cache: "redis")
+    else cache miss or Redis down
+        Cache-->>R: null
+        R->>DB: run the 8 report queries (Promise.all)
+        DB-->>R: rows
+        R->>Cache: setJsonCache(key, payload, 60s) — best-effort, never awaited to block the response
+        R-->>C: 200 (cache: "miss")
+    end
+```
+
+### Search (Meilisearch primary, Postgres fallback)
+
+Meilisearch is the primary search provider for typo-tolerant, ranked results on list pages. Every write to a searchable entity fires a **fire-and-forget** `void upsertInSearch(...)` after the Postgres write commits — search consistency is eventual, and that's an accepted tradeoff, because search must never block or fail a mutation. Every search *read* goes through a helper that returns `null` on any Meilisearch error (timeout, network, non-2xx) rather than throwing, and the caller's defined fallback is a Postgres `ILIKE`/`pg_trgm` query — degraded (no typo tolerance, no relevance ranking) but functionally correct. A judge running this demo with Meilisearch simply not started will see search keep working, just less fuzzy.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant R as Route handler
+    participant M as Meilisearch
+    participant DB as PostgreSQL
+
+    C->>R: GET /api/assets?q=lap
+    R->>M: search("lap")
+    alt Meilisearch reachable
+        M-->>R: ranked ids
+        R->>DB: findMany(WHERE id IN [...])
+        R-->>C: 200 (searchProvider: "meilisearch")
+    else Meilisearch down/timeout
+        M-->>R: null (never throws)
+        R->>DB: findMany(WHERE name ILIKE '%lap%' OR ... ) using pg_trgm GIN index
+        R-->>C: 200 (searchProvider: "postgres")
+    end
+```
+
+### Why UUIDv7 over auto-increment or UUIDv4
+
+Sequential auto-increment IDs leak business volume (a competitor watching `/assets/1042` learns you have ~1000 assets) and are a worse fit for a multi-tenant system where IDs are handed to the client routinely. Random UUIDv4 solves the leak but destroys B-tree index locality (every insert lands in a random page, causing write amplification on a busy table). UUIDv7 keeps a time-ordered prefix (good index locality, sequential-ish inserts) while the remaining bits stay random (no volume leak, no collision risk) — the best fit for a schema with 20 actively-written tables.
 
 ## Stack
 
-- Next.js 16 App Router, React 19, TypeScript strict mode.
-- Tailwind CSS 4, Shadcn/Radix primitives, Lucide icons, Framer Motion.
-- PostgreSQL 15+ with Prisma 6 migrations and typed client.
-- Redis for optional cache-aside, distributed rate limits, and idempotency.
-- S3-compatible object storage with MinIO locally.
-- Meilisearch for typo-tolerant table search, with Postgres fallback.
-- Resilient external calls: timeouts, retries, circuit breakers.
-- Structured JSON logging to stdout and optional Loki push.
-- Zod validation for API payloads, query strings, and auth forms.
-- PBKDF2 password auth, hashed opaque sessions, password reset, and RBAC.
+- **Framework**: Next.js 16 App Router, React 19, TypeScript strict mode (no `any`, no unchecked `!`).
+- **UI**: Tailwind CSS 4 (CSS-first `@theme` config), Shadcn/Radix primitives, Lucide icons, Framer Motion for purposeful micro-interactions (gated behind `prefers-reduced-motion`).
+- **Database**: PostgreSQL 15+, Prisma 6 (typed client, UUIDv7 primary keys as native `uuid` columns, hand-written migrations for constraints Prisma's schema syntax can't express).
+- **Cache**: Redis for list-endpoint cache-aside, rate limiting, idempotency keys, and pub/sub for live notifications — every Redis failure degrades soft.
+- **Search**: Meilisearch for typo-tolerant table search, with a Postgres `pg_trgm` fallback when it's unavailable.
+- **Object storage**: S3-compatible (MinIO locally) for asset photos and documents; metadata and RBAC stay in Postgres.
+- **Drag-and-drop**: `dnd-kit` for the Maintenance Kanban board.
+- **Voice input**: native browser `SpeechRecognition`/`webkitSpeechRecognition`, no external dependency.
+- **LLM**: one OpenAI-compatible proxy adapter (`lib/llm.ts`) with timeout/retry/circuit-breaker, used for the maintenance retirement recommendation — never called directly from a component.
+- **Email**: Nodemailer, mock/console-logging mode when SMTP isn't configured.
+- **Logging**: structured JSON to stdout, optional Loki push — never a bare `console.log`.
+- **Validation**: Zod is the single source of truth for both runtime validation and inferred TypeScript types across every API boundary.
 
-## Local Setup On Any Device
+## Local setup
 
-Prerequisites:
-
-- Node.js 22+
-- pnpm 10+
-- Docker Desktop or Docker Engine
+Prerequisites: Node 22+ (see `.nvmrc`), pnpm 10+ (pinned via `packageManager` in `package.json` — never `npm`/`yarn`), Docker Desktop or Docker Engine.
 
 ```bash
 pnpm install
 cp .env.example .env
-docker compose up -d
-pnpm db:migrate
-pnpm db:generate
-pnpm db:reset:populate
+docker compose up -d          # Postgres, Redis, Meilisearch, MinIO, Loki
+pnpm db:migrate                 # apply the committed migration history
+pnpm db:generate                 # regenerate the Prisma client
+pnpm db:reset:populate           # wipe + seed a full demo dataset (see below)
 pnpm dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. Check `docker compose ps` before assuming a service is down; `lib/env.ts` validates required environment variables at process startup and will fail fast with a clear message if something's missing or malformed — read that message, don't guess.
 
-Seeded demo users share the password `Password123!`. Seed roles are weighted, so you should get a mix of `USER`, `MODERATOR`, and `ADMIN` accounts. If you need fresh data, run `pnpm db:reset:populate` again.
+Only `DATABASE_URL` is strictly required to boot. Redis, Meilisearch, MinIO/S3, the LLM provider, and Loki are all optional at runtime — see [Why these choices](#why-these-choices-caching-search-indexing) for exactly how each one degrades.
 
-## Environment Variables
+## Demo logins
 
-Copy `.env.example` to `.env`.
+`pnpm db:reset:populate` seeds one organization ("AssetFlow Demo Co") with a full spread of departments, categories, assets (mixed statuses), allocations, transfers, bookings, maintenance requests (across every kanban status), and two audit cycles (one closed, one in progress). Every active demo user shares the password **`Password123!`**:
 
-```env
-DATABASE_URL="postgresql://postgres:password@localhost:5432/odoo_db?schema=public"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-MEILISEARCH_HOST="http://localhost:7700"
-MEILISEARCH_API_KEY="masterKey"
-MEILISEARCH_USERS_INDEX="users"
-MEILISEARCH_PRODUCTS_INDEX="products"
-MEILISEARCH_ORGANIZATIONS_INDEX="organizations"
-REDIS_URL="redis://localhost:6379"
-CACHE_TTL_SECONDS="20"
-S3_ENDPOINT="http://localhost:9000"
-S3_REGION="us-east-1"
-S3_ACCESS_KEY_ID="minioadmin"
-S3_SECRET_ACCESS_KEY="minioadmin"
-S3_BUCKET="odoo-template"
-S3_FORCE_PATH_STYLE="true"
-STORAGE_MAX_UPLOAD_BYTES="5242880"
-LLM_API_BASE_URL=""
-LLM_API_KEY=""
-LLM_MODEL="gpt-4.1-mini"
-LLM_TIMEOUT_MS="30000"
-LOKI_PUSH_URL="http://localhost:3100/loki/api/v1/push"
-LOG_LEVEL="info"
-```
+| Email | Role |
+| --- | --- |
+| `admin@assetflow.demo` | Admin |
+| `manager@assetflow.demo` / `manager2@assetflow.demo` | Asset Manager |
+| `depthead@assetflow.demo` / `depthead2@assetflow.demo` | Department Head |
+| `employee@assetflow.demo` … `employee5@assetflow.demo` | Employee |
 
-Only `DATABASE_URL` is required. Meilisearch, Redis, MinIO/S3, LLM provider, and Loki fail soft when unavailable:
+`pending1@assetflow.demo` / `pending2@assetflow.demo` are seeded in `PENDING_APPROVAL` (no password set) to exercise the admin-approval flow.
 
-- Search falls back to Postgres.
-- Cache misses fall through to Prisma.
-- Storage and LLM routes return clear configuration errors.
-- LLM provider outages return user-safe messages and never leak provider payloads.
-- Invalid `Idempotency-Key` headers return `400`; absent keys are allowed.
-- Logging still writes JSON to stdout if Loki is absent.
-
-## Local Infrastructure
-
-`docker-compose.yml` starts:
-
-- `postgres`: durable relational database.
-- `meilisearch`: search for table search bars.
-- `redis`: optional cache-aside, rate limits, and idempotency.
-- `minio`: local S3-compatible object storage.
-- `loki`: optional log aggregation target.
-- `app`: production image, opt-in with the `full` profile.
-
-Normal local development uses hot reload:
+## Day-to-day commands
 
 ```bash
-docker compose up -d
-pnpm dev
+pnpm dev                    # start the dev server
+pnpm lint                    # ESLint — zero warnings expected before a commit
+pnpm typecheck                # tsc --noEmit
+pnpm build                    # production build — run before shipping anything routing/config-sensitive
+pnpm db:migrate                # create + apply a new Prisma migration
+pnpm db:generate                # regenerate the Prisma client after a schema change
+pnpm db:reset:populate          # DESTRUCTIVE — wipes and reseeds the local DB; never run against a shared DB
+pnpm template:seed              # reseed demo data without a full reset
+pnpm search:index                # reindex Meilisearch after a direct DB write (bulk import, seed) that skipped the API
 ```
 
-Production-image smoke run:
+| Script | What it does |
+| --- | --- |
+| `pnpm dev` | Next.js dev server (Turbopack). |
+| `pnpm build` | Production build. |
+| `pnpm start` | Runs the built app with `next start`. |
+| `pnpm lint` | ESLint. |
+| `pnpm typecheck` | `tsc --noEmit`. |
+| `pnpm db:migrate` | Prisma `migrate dev` — create/apply local migrations. |
+| `pnpm db:generate` | Regenerates the Prisma client. |
+| `pnpm db:reset` | Resets the DB from migration history. Destructive. |
+| `pnpm db:reset:populate` | Reset + seed + search index in one step. Destructive. |
+| `pnpm db:populate` | Generate users + seed + index, without a schema reset. |
+| `pnpm template:seed` | Runs `scripts/seed-template-data.js` — the full AssetFlow demo dataset. |
+| `pnpm template:refresh` | `template:seed` + `search:index`, non-destructive. |
+| `pnpm search:index` | Rebuilds Meilisearch indexes for users/organizations/assets. |
+| `pnpm users:generate` / `users:seed` / `users:populate` | Standalone user-only seeding utilities. |
+| `pnpm db:wipe` / `db:wipe:table` | Wipe all tables / one table. Destructive, local only. |
 
-```bash
-docker compose --profile full up -d --build
-```
+Keep this table in sync with `package.json` — a script that isn't documented doesn't exist as far as DX is concerned.
 
-## Scripts
-
-| Script | What it does | When to use |
-| --- | --- | --- |
-| `pnpm dev` | Starts Next.js dev server with Turbopack. | Daily local development. |
-| `pnpm build` | Creates a production build. | Before shipping routing/config/build-sensitive changes. |
-| `pnpm start` | Runs the built app with `next start`. | Local production preview after `pnpm build`. |
-| `pnpm lint` | Runs ESLint. | Manual quality gate. |
-| `pnpm typecheck` | Runs `tsc --noEmit`. | Manual type gate. |
-| `pnpm db:migrate` | Runs Prisma migrate dev. | Create/apply local schema migrations. |
-| `pnpm db:generate` | Regenerates Prisma Client. | After schema changes or fresh install. |
-| `pnpm db:reset` | Resets DB from migration history. Destructive. | Local rebuild only. |
-| `pnpm db:reset:populate` | Resets DB, seeds data, indexes search. Destructive. | Clean local demo state. |
-| `pnpm db:populate` | Generates users, seeds template + AssetFlow data, indexes search. | Refresh demo data without migration reset. |
-| `pnpm users:generate` | Writes `scripts/users-data.json`. | Regenerate demo users. |
-| `pnpm users:seed` | Seeds users from `scripts/users-data.json`. | User-only seed. |
-| `pnpm users:index` | Rebuilds Meilisearch indexes. | Search refresh after direct DB edits. |
-| `pnpm users:populate` | Generates and seeds users. | User-only refresh. |
-| `pnpm template:seed` | Seeds users, products, and organizations. | Populate all template models. |
-| `pnpm assetflow:seed` | Seeds departments, assets, and audit cycles (with items/discrepancies). | Populate AssetFlow domain data. |
-| `pnpm search:index` | Configures and indexes all Meilisearch indexes (users, products, organizations, assets). | After imports, seeds, or migrations. |
-| `pnpm template:refresh` | Seeds template + AssetFlow data and indexes search. | Fast non-destructive refresh. |
-| `pnpm db:wipe` | Wipes all DB tables. Destructive. | Local cleanup. |
-| `pnpm db:wipe:table` | Wipes one DB table. Destructive. | Targeted local cleanup. |
-
-## App Surfaces
-
-- `/account`: user panel for profile editing and password settings.
-- `/admin`: admin panel with access to every registered entity.
-- `/moderator`: moderator panel for operational CRUD.
-- `/activity`: database-backed mutation/activity stream with polling refresh.
-- `/users`: configurable users table.
-- `/products`: configurable products table.
-- `/organizations`: configurable organizations table.
-- `/departments`: configurable departments table (nestable via parent department).
-- `/assets`: configurable assets table (AssetFlow asset registry).
-- `/audit`: audit cycle workflow — scope, assign auditors, checklist, auto-generated discrepancy report.
-- `/storage`: signed-in object upload, download, and delete.
-- `/api/llm/chat`: protected OpenAI-compatible chat-completion proxy.
-
-The entity pages are variations of one system. The table supports:
-
-- Debounced Meilisearch search with Redis-cached list responses.
-- Postgres fallback search when Meilisearch is unavailable.
-- Column visibility toggles saved in `localStorage`.
-- Filters, multi-sort, pagination, row selection, mobile cards.
-- Create, view, edit, single delete, selected delete, delete all.
-- Bulk edit selected rows with server-side field/type validation.
-- Loading overlays, empty states, toast errors, hover/focus states, and cursor affordances.
-
-## Security And RBAC
-
-- `proxy.ts` does a fast edge-safe cookie-presence redirect for protected pages.
-- `app/(protected)/layout.tsx` is the real page boundary and re-verifies the session against the database.
-- Every protected API route calls `getCurrentUser()` and checks entity permissions server-side.
-- Sessions are opaque random tokens stored hashed in `AuthSession.tokenHash`.
-- Session cookies are `httpOnly`, `sameSite=lax`, `secure` in production.
-- Passwords use PBKDF2-SHA256 with per-user salt and timing-safe verification.
-- Forgot/reset password tokens are hashed, short-lived, and single-use.
-- Auth endpoints are rate-limited per IP and route.
-- All request bodies, route params, filters, sorts, and pagination inputs are Zod-validated.
-- Mutations build explicit Prisma `data` objects; no raw request-body spreading.
-- Security headers and CSP live in `next.config.ts`.
-
-Current roles:
-
-- `ADMIN`: full CRUD for users, products, organizations; can change user roles.
-- `MODERATOR`: operational CRUD where allowed; cannot change user roles.
-- `USER`: account panel and self profile editing only by default.
-
-## Caching, Search, Logging, Latency
-
-- Entity list APIs use Redis cache-aside with a short TTL (`CACHE_TTL_SECONDS`).
-- Cache keys vary by entity, role, page, limit, search, filters, and sorts.
-- Create/update/delete/bulk mutations invalidate the matching entity cache prefix.
-- Meilisearch is the primary search provider; Postgres is the degraded fallback.
-- Meilisearch write/index failures are logged as warnings; CRUD responses still succeed after the database commit.
-- Hot list handlers log `durationMs`, result counts, search provider, and cache hits.
-- `/api/health` reports database, search, cache, storage, LLM configuration, and logging status.
-- Redis, Meilisearch, MinIO/S3, LLM provider, and Loki are optional runtime dependencies; none can take down core CRUD.
-- Redis also backs distributed rate limits and `Idempotency-Key` response caching when configured, with local fallback where safe.
-
-## Dynamic Data And Activity
-
-`ActivityEvent` is the local realtime-ready event table. CRUD writes, account profile edits, object storage mutations, and LLM requests append compact events after the authoritative write succeeds. The `/activity` page polls `GET /api/activity` and shows recent events without requiring a websocket broker or external realtime provider.
-
-Admins and moderators can see all activity. Normal users see their own activity. Indexes support recent-feed queries, actor history, entity history, and action dashboards.
-
-## Error Handling And Edge Cases
-
-- API responses always use the shared envelope from `lib/api.ts`; clients parse it through `lib/api-client.ts`.
-- Validation errors return `400` with Zod field details. The frontend shows the human message and never exposes stack traces.
-- Auth errors distinguish `401` signed-out from `403` not allowed.
-- Rate limits return `429` with `Retry-After`.
-- Required-but-unavailable integrations return `503`, for example unconfigured object storage or LLM provider.
-- Deletes are retry-safe: item deletes return `204` when the row is already gone, and bulk deletes report the number deleted.
-- Password reset tokens are single-use under concurrent submission; only one transaction can consume a token.
-- Storage uploads compensate for partial failure: if object bytes are written but metadata creation fails, the uploaded object is deleted asynchronously.
-- Empty tables, empty storage buckets, and no search results render empty states, not errors.
-
-## Object Storage
-
-Local development uses MinIO:
-
-- API: `http://localhost:9000`
-- Console: `http://localhost:9001`
-- Default credentials: `minioadmin` / `minioadmin`
-
-The `/storage` page uploads files through `POST /api/storage`. Metadata is stored in Postgres (`ObjectAsset`), while bytes are stored in the configured S3 bucket. Users can access their own files; admins and moderators can see all files.
-
-Allowed upload types are JPEG, PNG, WebP, GIF, PDF, plain text, and CSV. Control max size with `STORAGE_MAX_UPLOAD_BYTES`.
-
-Upload, download, and delete failures return specific user-facing messages. Object bytes are only served to the owner, admins, or moderators. Metadata deletes are synchronous; byte deletes are asynchronous and idempotent so retries are safe.
-
-## LLM API Design
-
-`POST /api/llm/chat` is provider-agnostic and assumes an OpenAI-compatible `/chat/completions` endpoint under `LLM_API_BASE_URL`. It is protected by session auth, Redis-backed rate limits, bounded Zod validation, timeout, one retry, circuit breaking, structured logging, and optional `Idempotency-Key`.
-
-The route validates provider configuration before making a network call. Provider failures are mapped to user-safe messages, token usage is logged when available, and repeated dependency failures trip an in-process circuit breaker to avoid cascading latency.
-
-## Turning This Into Any Project
-
-To add a new model:
-
-1. Add the Prisma model and indexes in `prisma/schema.prisma`.
-2. Run `pnpm db:migrate` and `pnpm db:generate`.
-3. Add a Zod read/write schema in `types/`.
-4. Add an entity config in `lib/entities/<model>.ts`.
-5. Register it in `lib/entities/registry.ts`.
-6. Extend `lib/entities/prisma-delegate.ts` for the Prisma delegate.
-7. Add `app/api/<model>/route.ts` and `app/api/<model>/[id]/route.ts` using `createCollectionHandlers` and `createItemHandlers`.
-8. Add `app/(protected)/<model>/page.tsx` with `EntityManagementPage`.
-9. Add the route to `lib/navigation.ts` with the roles that can see it.
-10. Add Meilisearch index settings/indexing in `scripts/index-users-search.js`, or rename that script as your template grows.
-11. Add seed data in `scripts/seed-template-data.js`.
-12. Run `pnpm template:refresh`.
-
-The key customization surface is the `EntityConfig`:
-
-- `columns`: visible fields, labels, formats, filterability, sortability, searchability, editable state.
-- `schema`: Zod write schema.
-- `permissions`: per-role `read/create/update/delete`.
-- `restrictedFields`: stricter field-level controls, such as admin-only `role`.
-- `defaultSort`: stable default ordering.
-- `search`: Meilisearch index env var.
-
-## UI/UX Standards
-
-- Keep pages compact, dense, and responsive from 320px upward.
-- Use Lucide icons for actions and statuses.
-- Every clickable item needs `cursor-pointer`, hover state, and visible focus state.
-- Use skeletons/loading overlays instead of blank screens.
-- Use empty states for no data, and error toasts only for real failures.
-- Respect reduced-motion; keep Framer Motion purposeful and light.
-- Avoid hydration hazards: no browser-only APIs in server render or first client render.
-- Verify light and dark mode for any visible change.
-
-## Docker
-
-Build and run only the app image:
-
-```bash
-docker build -t odoo-template .
-docker run -p 3000:3000 \
-  -e DATABASE_URL="postgresql://user:pass@host:5432/db?schema=public" \
-  -e NEXT_PUBLIC_APP_URL="https://your-domain.example" \
-  -e REDIS_URL="redis://redis-host:6379" \
-  odoo-template
-```
-
-Run migrations against the target database separately with:
-
-```bash
-pnpm exec prisma migrate deploy
-```
-
-## Project Structure
+## Project structure
 
 ```text
-app/
-  (protected)/        Authenticated pages: account, admin, moderator, entity CRUD
-  api/                Route handlers only
+app/            Routes, layouts, route handlers, error/loading boundaries.
+  api/          Route handlers only — no business logic lives in components.
+  (protected)/  Route group requiring an authenticated session (app/(protected)/layout.tsx is the real authz boundary; proxy.ts is a cheap edge-level redirect for UX only).
 components/
-  forms/              Auth/account/entity forms
-  landing/            Public landing sections
-  layout/             Navbar/footer/app chrome
-  modals/             CRUD, filtering, sorting, bulk-edit modals
-  pages/              Page-level reusable shells/wrappers
-  tables/             Generic entity table and table helpers
-  ui/                 Shadcn/Radix primitives
-lib/
-  entities/           Entity configs, generic CRUD handlers, query builders
-  auth.ts             Sessions, auth helpers, current-user lookup
-  api-client.ts       Frontend API envelope parser and friendly fallback messages
-  redis-cache.ts      Optional Redis cache-aside helper
-  meilisearch.ts      Search indexing/search helpers
-  object-storage.ts   S3-compatible storage helper
-  resilience.ts       Timeout/retry/circuit-breaker fetch helper
-  logger.ts           JSON logging and Loki push
-  api.ts              API response envelope
-  env.ts              Zod environment validation
-prisma/
-  schema.prisma       Database schema
-  migrations/         Committed migration history
-scripts/
-  seed/generate/wipe/index local data utilities
-types/
-  Zod schemas and inferred DTO types
-proxy.ts              Edge-safe protected-route redirect gate
+  ui/           Shadcn primitives — extend, don't fork.
+  layout/       Navbar, footer, app chrome.
+  forms/ modals/ tables/ pages/  Feature-organized, never dumped at components/ root.
+hooks/          Client hooks: data sync, media queries, reusable stateful logic (e.g. useSpeechToText).
+lib/            Server + shared utilities: prisma client, auth, api envelope, logger, search, Redis cache, LLM adapter, resilience (timeout/retry/circuit-breaker), query builders, env validation, rate limiting.
+prisma/         schema.prisma + committed migration history — treat migrations as history, not a scratchpad.
+scripts/        DX scripts: seeding, generation, wiping, indexing — run via pnpm, never as one-off inline commands.
+types/          Shared Zod schemas and inferred types — the cross-cutting type source of truth.
+docs/           Demo script, screenshots, design references.
 ```
 
-## Manual Quality Gates
+## Security model
 
-This template does not include automated tests or CI. Before committing meaningful changes, run:
+- Sessions are random opaque tokens, stored **hashed** (`sha256`); the raw token only ever exists in the `httpOnly` cookie and the response that sets it.
+- Passwords are PBKDF2-SHA256 at 210,000 iterations with a per-user salt, verified with `timingSafeEqual`.
+- Every protected page and API route re-verifies the session against the database — the edge proxy's cookie-presence check is a UX convenience only, never the authorization boundary.
+- Role checks are always server-side, using the role loaded fresh from the DB in the current request — never a client-supplied field.
+- Every multi-tenant table is scoped to the caller's `orgId` at the query layer (`EntityConfig.tenantScope` for the generic CRUD engine, explicit `where: { orgId }` everywhere else) — this is the top security invariant in a multi-tenant app and the first thing to check when adding a new table or route.
+
+See `AGENTS.md` §6 for the full model.
+
+## Manual quality gates
+
+There are no automated tests or CI in this project. Before committing meaningful changes, run:
 
 ```bash
 pnpm lint
@@ -334,4 +371,4 @@ pnpm typecheck
 pnpm build
 ```
 
-For UI work, also run `pnpm dev` and manually exercise the affected flows in light/dark mode and at mobile/tablet/desktop widths.
+For UI work, also run `pnpm dev` and manually exercise the affected flow — golden path plus at least one edge case (empty/loading/error state) — in both light and dark mode, at mobile/tablet/desktop widths.

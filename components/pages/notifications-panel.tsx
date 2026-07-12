@@ -11,44 +11,46 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { readApiResponse } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/date-format";
 import {
-  dotClassForType,
-  TYPE_TO_FILTER,
-  type NotificationFilterValue,
+  CATEGORY_DOT_CLASS,
+  CATEGORY_LABELS,
+  type NotificationCategoryValue,
   type NotificationView,
 } from "@/lib/notification-display";
 
-type TabValue = "all" | NotificationFilterValue;
+type TabValue = "ALL" | "ALERT" | "APPROVAL" | "BOOKING";
 
 const TABS: { value: TabValue; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "alerts", label: "Alerts" },
-  { value: "approvals", label: "Approvals" },
-  { value: "bookings", label: "Bookings" },
+  { value: "ALL", label: "All" },
+  { value: "ALERT", label: "Alerts" },
+  { value: "APPROVAL", label: "Approvals" },
+  { value: "BOOKING", label: "Bookings" },
 ];
 
 const PAGE_SIZE = 20;
 
 export function NotificationsPanel() {
-  const [tab, setTab] = React.useState<TabValue>("all");
+  const [tab, setTab] = React.useState<TabValue>("ALL");
   const [notifications, setNotifications] = React.useState<NotificationView[]>([]);
-  const [nextCursor, setNextCursor] = React.useState<string | null>(null);
+  const [page, setPage] = React.useState(1);
+  const [totalPages, setTotalPages] = React.useState(1);
   const [isLoading, setIsLoading] = React.useState(true);
 
-  const load = React.useCallback(async (currentTab: TabValue, cursor?: string) => {
+  const load = React.useCallback(async (currentTab: TabValue, currentPage: number) => {
     setIsLoading(true);
     try {
-      const query = new URLSearchParams({ limit: String(PAGE_SIZE) });
-      if (currentTab !== "all") query.set("filter", currentTab);
-      if (cursor) query.set("cursor", cursor);
+      const query = new URLSearchParams({ page: String(currentPage), limit: String(PAGE_SIZE) });
+      if (currentTab !== "ALL") query.set("category", currentTab);
 
       const response = await fetch(`/api/notifications?${query.toString()}`, { cache: "no-store" });
-      const json = await readApiResponse<{ data?: NotificationView[]; meta?: { nextCursor?: string | null } }>(
+      const json = await readApiResponse<{ data?: NotificationView[]; meta?: { totalPages?: number } }>(
         response,
         "Failed to load notifications",
       );
 
-      setNotifications((current) => (cursor ? [...current, ...(json.data ?? [])] : (json.data ?? [])));
-      setNextCursor(json.meta?.nextCursor ?? null);
+      setNotifications((current) =>
+        currentPage === 1 ? (json.data ?? []) : [...current, ...(json.data ?? [])],
+      );
+      setTotalPages(json.meta?.totalPages ?? 1);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load notifications");
     } finally {
@@ -57,11 +59,12 @@ export function NotificationsPanel() {
   }, []);
 
   React.useEffect(() => {
-    const frame = window.requestAnimationFrame(() => void load(tab));
+    const frame = window.requestAnimationFrame(() => void load(tab, 1));
     return () => window.cancelAnimationFrame(frame);
   }, [tab, load]);
 
   const handleTabChange = (value: string) => {
+    setPage(1);
     setTab(value as TabValue);
   };
 
@@ -72,7 +75,7 @@ export function NotificationsPanel() {
       try {
         const notification = JSON.parse(event.data) as NotificationView;
         setNotifications((current) => {
-          if (tab !== "all" && TYPE_TO_FILTER[notification.type] !== tab) return current;
+          if (tab !== "ALL" && notification.category !== tab) return current;
           return [notification, ...current];
         });
       } catch {
@@ -85,20 +88,20 @@ export function NotificationsPanel() {
 
   const markRead = async (id: string) => {
     const target = notifications.find((item) => item.id === id);
-    if (!target || target.isRead) return;
+    if (!target || target.readAt) return;
 
     setNotifications((current) =>
-      current.map((item) => (item.id === id ? { ...item, isRead: true } : item)),
+      current.map((item) => (item.id === id ? { ...item, readAt: new Date().toISOString() } : item)),
     );
     try {
-      await fetch(`/api/notifications/${id}/read`, { method: "POST" });
+      await fetch(`/api/notifications/${id}`, { method: "PATCH" });
     } catch {
       toast.error("Failed to mark as read");
     }
   };
 
   const markAllRead = async () => {
-    setNotifications((current) => current.map((item) => ({ ...item, isRead: true })));
+    setNotifications((current) => current.map((item) => ({ ...item, readAt: new Date().toISOString() })));
     try {
       await fetch("/api/notifications/read-all", { method: "POST" });
       toast.success("All notifications marked read");
@@ -108,10 +111,12 @@ export function NotificationsPanel() {
   };
 
   const loadMore = () => {
-    if (nextCursor) void load(tab, nextCursor);
+    const nextPage = page + 1;
+    setPage(nextPage);
+    void load(tab, nextPage);
   };
 
-  const unreadCount = notifications.filter((item) => !item.isRead).length;
+  const unreadCount = notifications.filter((item) => !item.readAt).length;
 
   return (
     <div className="space-y-3">
@@ -166,12 +171,14 @@ export function NotificationsPanel() {
               <div className="flex min-w-0 items-center gap-2.5">
                 <span
                   className={`size-2 shrink-0 rounded-full ${
-                    notification.isRead ? "bg-transparent" : dotClassForType(notification.type)
+                    notification.readAt
+                      ? "bg-transparent"
+                      : CATEGORY_DOT_CLASS[notification.category as NotificationCategoryValue]
                   }`}
                 />
                 <div className="min-w-0">
                   <p
-                    className={`truncate text-sm ${notification.isRead ? "text-muted-foreground" : "font-medium text-foreground"}`}
+                    className={`truncate text-sm ${notification.readAt ? "text-muted-foreground" : "font-medium text-foreground"}`}
                   >
                     {notification.title}
                   </p>
@@ -179,11 +186,9 @@ export function NotificationsPanel() {
                     <p className="truncate text-xs text-muted-foreground">{notification.body}</p>
                   ) : null}
                 </div>
-                {TYPE_TO_FILTER[notification.type] ? (
-                  <Badge variant="outline" className="hidden shrink-0 rounded-none sm:inline-flex">
-                    {TYPE_TO_FILTER[notification.type]}
-                  </Badge>
-                ) : null}
+                <Badge variant="outline" className="hidden shrink-0 rounded-none sm:inline-flex">
+                  {CATEGORY_LABELS[notification.category as NotificationCategoryValue]}
+                </Badge>
               </div>
               <span className="shrink-0 text-xs text-muted-foreground">
                 {formatRelativeTime(notification.createdAt)}
@@ -193,7 +198,7 @@ export function NotificationsPanel() {
         </div>
       )}
 
-      {nextCursor ? (
+      {page < totalPages ? (
         <div className="flex justify-center">
           <Button
             variant="outline"

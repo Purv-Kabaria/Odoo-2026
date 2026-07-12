@@ -11,13 +11,15 @@ import {
   getSpendByCategory,
   getUtilizationByDepartment,
 } from "@/lib/reports/queries";
-import { ReportExportQuerySchema } from "@/types/reports-types";
+import { REPORT_EXPORT_KEYS, ReportExportQuerySchema } from "@/types/reports-types";
 
 function canViewReports(role: string): boolean {
   return role === "ADMIN" || role === "ASSET_MANAGER";
 }
 
-const EXPORTERS: Record<string, (orgId: string, filters: { idleDays: number; retirementYears: number; months: number }) => Promise<{ columns: string[]; rows: Record<string, unknown>[] }>> = {
+type ReportExportKey = (typeof REPORT_EXPORT_KEYS)[number];
+
+const EXPORTERS: Record<ReportExportKey, (orgId: string, filters: { idleDays: number; retirementYears: number; months: number }) => Promise<{ columns: string[]; rows: Record<string, unknown>[] }>> = {
   "utilization-by-department": async (orgId) => ({
     columns: ["departmentName", "allocatedCount"],
     rows: await getUtilizationByDepartment(orgId),

@@ -2,7 +2,6 @@ import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
-import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -49,16 +48,6 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
       entityId: request_.id,
       metadata: {},
     });
-    void (async () => {
-      const asset = await prisma.asset.findUnique({ where: { id: request_.assetId }, select: { assetTag: true } });
-      void dispatchNotification({
-        recipientIds: [request_.raisedById],
-        type: "MAINTENANCE_APPROVED",
-        title: `Maintenance request for ${asset?.assetTag ?? "your asset"} approved`,
-        relatedEntityType: "maintenance",
-        relatedEntityId: request_.id,
-      });
-    })();
     logger.info("maintenance.approve", { requestId, id: request_.id });
 
     return Api.ok(updated);
