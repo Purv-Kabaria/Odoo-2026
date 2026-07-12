@@ -7,6 +7,7 @@ import { assetsEntityConfig } from '@/lib/entities/assets';
 import { invalidateEntityListCache } from '@/lib/entities/crud-handlers';
 import { logger } from '@/lib/logger';
 import { upsertInSearch } from '@/lib/meilisearch';
+import { createNotifications } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 
 const ParamsSchema = z.object({ id: z.uuid('Invalid audit cycle identifier') });
@@ -111,6 +112,30 @@ export async function POST(
         lostCount: result.lostAssetIds.length,
       },
     });
+    void (async () => {
+      const cycle = await prisma.auditCycle.findUnique({
+        where: { id: cycleId },
+        select: {
+          name: true,
+          createdById: true,
+          auditors: { select: { auditorId: true } },
+        },
+      });
+      if (!cycle) return;
+      const recipientIds = [
+        ...cycle.auditors.map((entry) => entry.auditorId),
+        ...(cycle.createdById ? [cycle.createdById] : []),
+      ];
+      void createNotifications({
+        recipientIds,
+        type: 'AUDIT_CYCLE_CLOSED',
+        title: `Audit cycle "${cycle.name}" closed`,
+        body: `${result.flaggedCount} flagged, ${result.lostAssetIds.length} marked Lost`,
+        entityType: 'auditCycle',
+        entityId: cycleId,
+        metadata: { flaggedCount: result.flaggedCount, lostCount: result.lostAssetIds.length },
+      });
+    })();
 
     logger.info('audit.cycle.close', {
       requestId,
