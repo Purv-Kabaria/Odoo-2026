@@ -25,6 +25,7 @@ const EnvSchema = z.object({
   MEILISEARCH_HOST: OptionalUrlSchema,
   MEILISEARCH_API_KEY: z.string().optional(),
   MEILISEARCH_USERS_INDEX: z.string().min(1).default("users"),
+  MEILISEARCH_PRODUCTS_INDEX: z.string().min(1).default("products"),
   MEILISEARCH_ORGANIZATIONS_INDEX: z.string().min(1).default("organizations"),
   MEILISEARCH_ASSETS_INDEX: z.string().min(1).default("assets"),
 

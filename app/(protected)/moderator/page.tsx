@@ -19,7 +19,7 @@ export default async function ModeratorPage() {
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
-  if (user.role !== "ADMIN" && user.role !== "ASSET_MANAGER") redirect("/account");
+  if (user.role !== "ADMIN" && user.role !== "MODERATOR") redirect("/account");
 
   const accessibleEntities = entityRegistry.filter((config) =>
     canPerform(config, "read", user.role),
@@ -30,7 +30,7 @@ export default async function ModeratorPage() {
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 space-y-1">
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            Asset Manager panel
+            Moderator panel
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Operations
@@ -40,13 +40,13 @@ export default async function ModeratorPage() {
           </p>
         </div>
         <Badge variant="outline" className="w-fit">
-          Asset Manager access
+          Moderated access
         </Badge>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {accessibleEntities.map((config) => (
-          <Card key={config.key} size="sm">
+          <Card key={config.key} size="sm" className="rounded-none">
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -69,7 +69,7 @@ export default async function ModeratorPage() {
               ))}
             </CardContent>
             <div className="border-t border-border p-3">
-              <Button asChild size="sm" className="w-full cursor-pointer">
+              <Button asChild size="sm" className="w-full cursor-pointer rounded-none">
                 <Link href={`/${config.key}`}>
                   Open {config.label}
                   <ArrowRight className="size-4" />

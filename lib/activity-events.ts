@@ -1,31 +1,33 @@
-import type { Prisma, Role } from "@prisma/client";
+import type { ActivityAction, Prisma, UserRole } from "@prisma/client";
 
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 export type ActivityEventView = {
   id: string;
-  action: string;
+  action: ActivityAction;
   entityType: string;
-  entityId: string;
+  entityId: string | null;
+  summary: string;
   metadata: Prisma.JsonValue | null;
+  requestId: string | null;
   createdAt: string;
   actor: {
     id: string;
     name: string;
     email: string;
-    role: Role;
+    role: UserRole;
   } | null;
 };
 
 type RecordActivityEventInput = {
-  action: string;
+  action: ActivityAction;
   entityType: string;
   entityId?: string | null;
   actorId?: string | null;
-  orgId: string;
-  summary?: string;
+  summary: string;
   metadata?: Prisma.InputJsonValue;
+  requestId?: string;
 };
 
 const activitySelect = {
@@ -33,7 +35,9 @@ const activitySelect = {
   action: true,
   entityType: true,
   entityId: true,
+  summary: true,
   metadata: true,
+  requestId: true,
   createdAt: true,
   actor: {
     select: {
@@ -43,10 +47,10 @@ const activitySelect = {
       role: true,
     },
   },
-} satisfies Prisma.ActivityLogSelect;
+} satisfies Prisma.ActivityEventSelect;
 
 function toActivityEventView(
-  event: Prisma.ActivityLogGetPayload<{ select: typeof activitySelect }>,
+  event: Prisma.ActivityEventGetPayload<{ select: typeof activitySelect }>,
 ): ActivityEventView {
   return {
     ...event,
@@ -58,14 +62,15 @@ export async function recordActivityEvent(
   input: RecordActivityEventInput,
 ): Promise<void> {
   try {
-    await prisma.activityLog.create({
+    await prisma.activityEvent.create({
       data: {
-        orgId: input.orgId,
         action: input.action,
         entityType: input.entityType,
-        entityId: input.entityId ?? "",
+        entityId: input.entityId ?? null,
         actorId: input.actorId ?? null,
+        summary: input.summary,
         metadata: input.metadata,
+        requestId: input.requestId,
       },
     });
   } catch (error) {
@@ -82,22 +87,19 @@ export async function listActivityEvents({
   limit,
   since,
   actorId,
-  orgId,
   includeAll,
 }: {
   limit: number;
   since?: Date;
   actorId: string;
-  orgId: string;
   includeAll: boolean;
 }): Promise<ActivityEventView[]> {
-  const where: Prisma.ActivityLogWhereInput = {
-    orgId,
+  const where: Prisma.ActivityEventWhereInput = {
     ...(includeAll ? {} : { actorId }),
     ...(since ? { createdAt: { gt: since } } : {}),
   };
 
-  const events = await prisma.activityLog.findMany({
+  const events = await prisma.activityEvent.findMany({
     where,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit,
