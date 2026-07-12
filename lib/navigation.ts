@@ -5,6 +5,7 @@ import {
   CalendarClock,
   ClipboardCheck,
   Gauge,
+  LineChart,
   ShieldCheck,
   UserCircle,
   Users,
@@ -63,6 +64,12 @@ export const navigationLinks: NavigationLink[] = [
     href: "/audit",
     icon: ClipboardCheck,
     roles: ALL_ROLES,
+  },
+  {
+    title: "Reports",
+    href: "/reports",
+    icon: LineChart,
+    roles: ["ADMIN", "ASSET_MANAGER"],
   },
   {
     title: "Account",
