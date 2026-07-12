@@ -17,6 +17,9 @@ export type GenericDelegate = {
   findUnique: (
     args: Record<string, unknown>,
   ) => Promise<Record<string, unknown> | null>;
+  findFirst: (
+    args: Record<string, unknown>,
+  ) => Promise<Record<string, unknown> | null>;
   count: (args: Record<string, unknown>) => Promise<number>;
   create: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
   update: (args: Record<string, unknown>) => Promise<Record<string, unknown>>;

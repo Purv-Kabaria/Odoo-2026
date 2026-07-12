@@ -19,13 +19,13 @@ export async function POST(req: Request) {
     const rateLimit = await checkRateLimit(
       `forgot-password:${getClientIp(req)}`,
       FORGOT_PASSWORD_RATE_LIMIT,
-      FORGOT_PASSWORD_RATE_WINDOW_MS
+      FORGOT_PASSWORD_RATE_WINDOW_MS,
     );
     if (!rateLimit.success) {
       logger.warn("auth.forgot_password.rate_limited", { requestId });
       return Api.tooManyRequests(
         "Too many requests. Try again later.",
-        (rateLimit.resetAt - Date.now()) / 1000
+        (rateLimit.resetAt - Date.now()) / 1000,
       );
     }
 
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     const { email } = validation.data;
     const user = await prisma.user.findUnique({
       where: { email },
-      select: { id: true, email: true },
+      select: { id: true },
     });
 
     let resetUrl: string | null = null;
@@ -47,11 +47,13 @@ export async function POST(req: Request) {
     if (user) {
       const token = randomBytes(32).toString("hex");
       const tokenHash = hashToken(token);
-      const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+      const expiresAt = new Date(
+        Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000,
+      );
 
       await prisma.passwordResetToken.create({
         data: {
-          email: user.email,
+          userId: user.id,
           tokenHash,
           expiresAt,
         },
@@ -59,13 +61,16 @@ export async function POST(req: Request) {
 
       resetUrl = `${env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
 
-      logger.info("auth.forgot_password.created", { requestId, email: user.email });
+      // Server-side only log — never return the raw token in production.
+      logger.info("auth.forgot_password.created", { requestId, userId: user.id });
     } else {
       logger.info("auth.forgot_password.missed", { requestId });
     }
 
     return Api.ok({
-      message: "If an account exists for that email, a reset link has been sent.",
+      message:
+        "If an account exists for that email, a reset link has been sent.",
+      // In development, include the reset URL for testing convenience.
       resetUrl: env.NODE_ENV === "production" ? null : resetUrl,
     });
   } catch (error) {

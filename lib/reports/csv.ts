@@ -1,16 +1,14 @@
-/** RFC4180-ish CSV serialization — flat rows only, explicit column order so
- * the output is stable regardless of key insertion order upstream. */
-function escapeCsvValue(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  const str = value instanceof Date ? value.toISOString() : String(value);
-  if (/[",\r\n]/.test(str)) {
-    return `"${str.replaceAll('"', '""')}"`;
-  }
-  return str;
-}
-
+/** Minimal RFC 4180 CSV serialization — quotes/escapes only where needed, CRLF line endings. */
 export function rowsToCsv(columns: string[], rows: Record<string, unknown>[]): string {
-  const header = columns.join(',');
-  const lines = rows.map((row) => columns.map((column) => escapeCsvValue(row[column])).join(','));
-  return [header, ...lines].join('\r\n');
+  const escape = (value: unknown): string => {
+    const str = value === null || value === undefined ? "" : String(value);
+    if (/[",\r\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+    return str;
+  };
+
+  const lines = [columns.map(escape).join(",")];
+  for (const row of rows) {
+    lines.push(columns.map((col) => escape(row[col])).join(","));
+  }
+  return lines.join("\r\n");
 }

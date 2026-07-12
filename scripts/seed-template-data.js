@@ -1,132 +1,515 @@
 const { PrismaClient } = require("@prisma/client");
 const { pbkdf2Sync, randomBytes } = require("crypto");
-const fs = require("fs");
 
 const prisma = new PrismaClient();
 const DEMO_PASSWORD = "Password123!";
 const PASSWORD_ITERATIONS = 210000;
 
-const productCategories = ["Software", "Services", "Hardware", "Training", "Support"];
-const productStatuses = ["ACTIVE", "DRAFT", "ARCHIVED"];
-const industries = ["Retail", "Manufacturing", "Healthcare", "Education", "Finance", "Logistics"];
-const regions = ["North America", "Europe", "Asia Pacific", "Latin America", "Middle East"];
-const plans = ["STARTER", "GROWTH", "ENTERPRISE"];
-
-function slugify(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
+// Mirrors lib/password.ts's hashPassword exactly (pbkdf2$<iterations>$<saltHex>$<hashHex>)
+// so seeded users can log in through the real /api/auth/login route.
 function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
-  const passwordHash = pbkdf2Sync(password, salt, PASSWORD_ITERATIONS, 32, "sha256").toString("hex");
-
-  return {
-    passwordHash,
-    salt,
-    iterations: PASSWORD_ITERATIONS,
-  };
+  const hash = pbkdf2Sync(password, salt, PASSWORD_ITERATIONS, 32, "sha256").toString("hex");
+  return `pbkdf2$${PASSWORD_ITERATIONS}$${salt}$${hash}`;
 }
 
-async function seedUsers() {
-  if (!fs.existsSync("scripts/users-data.json")) {
-    console.log("Skipping users: scripts/users-data.json was not found.");
-    return 0;
-  }
-
-  const users = JSON.parse(fs.readFileSync("scripts/users-data.json", "utf8"));
-
-  for (const user of users) {
-    const seededUser = await prisma.user.upsert({
-      where: { email: user.email },
-      update: {
-        name: user.name,
-        role: user.role,
-        location: user.location,
-        gender: user.gender,
-      },
-      create: {
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        location: user.location,
-        gender: user.gender,
-        createdAt: new Date(user.createdAt),
-      },
-    });
-
-    await prisma.passwordCredential.upsert({
-      where: { userId: seededUser.id },
-      update: hashPassword(DEMO_PASSWORD),
-      create: {
-        userId: seededUser.id,
-        ...hashPassword(DEMO_PASSWORD),
-      },
-    });
-  }
-
-  return users.length;
-}
-
-async function seedProducts() {
-  const products = Array.from({ length: 120 }, (_, index) => {
-    const sequence = index + 1;
-    const category = productCategories[index % productCategories.length];
-    return {
-      name: `${category} Package ${sequence}`,
-      sku: `SKU-${String(sequence).padStart(4, "0")}`,
-      category,
-      status: productStatuses[index % productStatuses.length],
-      priceCents: 4900 + index * 275,
-      stock: (index * 7) % 95,
-    };
-  });
-
-  for (const product of products) {
-    await prisma.product.upsert({
-      where: { sku: product.sku },
-      update: product,
-      create: product,
-    });
-  }
-
-  return products.length;
-}
-
-async function seedOrganizations() {
-  const organizations = Array.from({ length: 80 }, (_, index) => {
-    const sequence = index + 1;
-    const industry = industries[index % industries.length];
-    const name = `${industry} Group ${sequence}`;
-    return {
-      name,
-      slug: `${slugify(name)}-${sequence}`,
-      industry,
-      region: regions[index % regions.length],
-      plan: plans[index % plans.length],
-      seats: 3 + ((index * 5) % 80),
-    };
-  });
-
-  for (const organization of organizations) {
-    await prisma.organization.upsert({
-      where: { slug: organization.slug },
-      update: organization,
-      create: organization,
-    });
-  }
-
-  return organizations.length;
+const DAY = 86400000;
+const daysAgo = (n) => new Date(Date.now() - n * DAY);
+const daysFromNow = (n) => new Date(Date.now() + n * DAY);
+function atHour(date, hour, minute = 0) {
+  const d = new Date(date);
+  d.setHours(hour, minute, 0, 0);
+  return d;
 }
 
 async function main() {
-  const [users, products, organizations] = await Promise.all([
-    seedUsers(),
-    seedProducts(),
-    seedOrganizations(),
+  // ---------------------------------------------------------------------
+  // Organization
+  // ---------------------------------------------------------------------
+  const org = await prisma.organization.upsert({
+    where: { slug: "assetflow-demo" },
+    update: {},
+    create: { name: "AssetFlow Demo Co", slug: "assetflow-demo" },
+  });
+
+  // ---------------------------------------------------------------------
+  // Users — every role, plus PENDING_APPROVAL invited users
+  // ---------------------------------------------------------------------
+  const passwordHash = hashPassword(DEMO_PASSWORD);
+  const activeUserDefs = [
+    { email: "admin@assetflow.demo", name: "Ava Admin", role: "ADMIN" },
+    { email: "manager@assetflow.demo", name: "Max Manager", role: "ASSET_MANAGER" },
+    { email: "manager2@assetflow.demo", name: "Mia Manager", role: "ASSET_MANAGER" },
+    { email: "depthead@assetflow.demo", name: "Dana Depthead", role: "DEPARTMENT_HEAD" },
+    { email: "depthead2@assetflow.demo", name: "Derek Depthead", role: "DEPARTMENT_HEAD" },
+    { email: "employee@assetflow.demo", name: "Eli Employee", role: "EMPLOYEE" },
+    { email: "employee2@assetflow.demo", name: "Emma Employee", role: "EMPLOYEE" },
+    { email: "employee3@assetflow.demo", name: "Ethan Employee", role: "EMPLOYEE" },
+    { email: "employee4@assetflow.demo", name: "Ezra Employee", role: "EMPLOYEE" },
+    { email: "employee5@assetflow.demo", name: "Elena Employee", role: "EMPLOYEE" },
+  ];
+
+  const activeUsers = {};
+  for (const def of activeUserDefs) {
+    const user = await prisma.user.upsert({
+      where: { email: def.email },
+      update: {},
+      create: { orgId: org.id, email: def.email, name: def.name, role: def.role, passwordHash, status: "ACTIVE" },
+    });
+    activeUsers[def.email] = user;
+  }
+  const [admin, manager, manager2, depthead, depthead2, employee, employee2, employee3, employee4, employee5] =
+    activeUserDefs.map((d) => activeUsers[d.email]);
+
+  // Admin-invited, not-yet-accepted users — no password, PENDING_APPROVAL.
+  const pendingDefs = [
+    { email: "pending1@assetflow.demo", name: "Priya Pending" },
+    { email: "pending2@assetflow.demo", name: "Paolo Pending" },
+  ];
+  for (const def of pendingDefs) {
+    await prisma.user.upsert({
+      where: { email: def.email },
+      update: {},
+      create: {
+        orgId: org.id,
+        email: def.email,
+        name: def.name,
+        role: "EMPLOYEE",
+        status: "PENDING_APPROVAL",
+        invitedById: admin.id,
+        invitedAt: daysAgo(2),
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Departments — hierarchy + heads
+  // ---------------------------------------------------------------------
+  const engineering = await prisma.department.upsert({
+    where: { orgId_name: { orgId: org.id, name: "Engineering" } },
+    update: {},
+    create: { orgId: org.id, name: "Engineering", headId: depthead.id },
+  });
+  const facilities = await prisma.department.upsert({
+    where: { orgId_name: { orgId: org.id, name: "Facilities" } },
+    update: {},
+    create: { orgId: org.id, name: "Facilities", headId: depthead2.id },
+  });
+  const fieldOps = await prisma.department.upsert({
+    where: { orgId_name: { orgId: org.id, name: "Field Ops" } },
+    update: {},
+    create: { orgId: org.id, name: "Field Ops" },
+  });
+  const fieldOpsEast = await prisma.department.upsert({
+    where: { orgId_name: { orgId: org.id, name: "Field Ops — East" } },
+    update: {},
+    create: { orgId: org.id, name: "Field Ops — East", parentDepartmentId: fieldOps.id },
+  });
+
+  await prisma.user.update({ where: { id: depthead.id }, data: { departmentId: engineering.id } });
+  await prisma.user.update({ where: { id: depthead2.id }, data: { departmentId: facilities.id } });
+  await prisma.user.update({ where: { id: employee.id }, data: { departmentId: engineering.id } });
+  await prisma.user.update({ where: { id: employee2.id }, data: { departmentId: engineering.id } });
+  await prisma.user.update({ where: { id: employee3.id }, data: { departmentId: facilities.id } });
+  await prisma.user.update({ where: { id: employee4.id }, data: { departmentId: fieldOpsEast.id } });
+  // employee5 deliberately left unassigned — realistic edge case for department-scoped views.
+
+  // ---------------------------------------------------------------------
+  // Asset categories
+  // ---------------------------------------------------------------------
+  const [electronics, furniture, vehicles, itEquipment, officeSupplies] = await Promise.all([
+    prisma.assetCategory.upsert({
+      where: { orgId_name: { orgId: org.id, name: "Electronics" } },
+      update: {},
+      create: {
+        orgId: org.id,
+        name: "Electronics",
+        fieldSchema: [{ key: "warrantyMonths", label: "Warranty (months)", type: "number", required: false }],
+      },
+    }),
+    prisma.assetCategory.upsert({
+      where: { orgId_name: { orgId: org.id, name: "Furniture" } },
+      update: {},
+      create: { orgId: org.id, name: "Furniture" },
+    }),
+    prisma.assetCategory.upsert({
+      where: { orgId_name: { orgId: org.id, name: "Vehicles" } },
+      update: {},
+      create: { orgId: org.id, name: "Vehicles" },
+    }),
+    prisma.assetCategory.upsert({
+      where: { orgId_name: { orgId: org.id, name: "IT Equipment" } },
+      update: {},
+      create: { orgId: org.id, name: "IT Equipment" },
+    }),
+    prisma.assetCategory.upsert({
+      where: { orgId_name: { orgId: org.id, name: "Office Supplies" } },
+      update: {},
+      create: { orgId: org.id, name: "Office Supplies" },
+    }),
   ]);
 
-  console.log(`Seeded ${users} users, ${products} products, and ${organizations} organizations.`);
-  console.log(`Demo user password: ${DEMO_PASSWORD}`);
+  // ---------------------------------------------------------------------
+  // Assets — 30 total, 25 individually-allocatable + 5 bookable
+  // ---------------------------------------------------------------------
+  async function nextTag() {
+    const updated = await prisma.organization.update({
+      where: { id: org.id },
+      data: { assetSeq: { increment: 1 } },
+      select: { assetSeq: true },
+    });
+    return `AF-${String(updated.assetSeq).padStart(4, "0")}`;
+  }
+
+  const assetDefs = [
+    { name: "Dell XPS 15 Laptop", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 2", acquisitionDate: daysAgo(548), acquisitionCost: 1800 }, // 0
+    { name: "MacBook Pro 14", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 2", acquisitionDate: daysAgo(240), acquisitionCost: 2400 }, // 1
+    { name: "ThinkPad X1 Carbon", categoryId: electronics.id, condition: "GOOD", location: "Bengaluru Office", acquisitionDate: daysAgo(730), acquisitionCost: 1600 }, // 2
+    { name: 'Dell Monitor 27"', categoryId: electronics.id, condition: "NEW", location: "Warehouse", acquisitionDate: daysAgo(60), acquisitionCost: 350 }, // 3
+    { name: "HP LaserJet Printer", categoryId: electronics.id, condition: "FAIR", location: "HQ Floor 1", acquisitionDate: daysAgo(1095), acquisitionCost: 600 }, // 4
+    { name: "Epson Projector", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 2", acquisitionDate: daysAgo(1460), acquisitionCost: 900 }, // 5
+    { name: "iPhone 14", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 3", acquisitionDate: daysAgo(365), acquisitionCost: 999 }, // 6
+    { name: "iPad Air", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 3", acquisitionDate: daysAgo(365), acquisitionCost: 650 }, // 7
+    { name: "Logitech Webcam", categoryId: electronics.id, condition: "NEW", location: "Warehouse", acquisitionDate: daysAgo(30), acquisitionCost: 80 }, // 8
+    { name: "Herman Miller Office Chair", categoryId: furniture.id, condition: "GOOD", location: "Bengaluru Office", acquisitionDate: daysAgo(1095), acquisitionCost: 1200 }, // 9
+    { name: "Standing Desk", categoryId: furniture.id, condition: "GOOD", location: "HQ Floor 2", acquisitionDate: daysAgo(730), acquisitionCost: 700 }, // 10
+    { name: "Bookshelf", categoryId: furniture.id, condition: "FAIR", location: "Warehouse", acquisitionDate: daysAgo(1825), acquisitionCost: 250 }, // 11
+    { name: "Filing Cabinet", categoryId: furniture.id, condition: "POOR", location: "Warehouse", acquisitionDate: daysAgo(2555), acquisitionCost: 150 }, // 12
+    { name: "Ergonomic Chair", categoryId: furniture.id, condition: "NEW", location: "HQ Floor 1", acquisitionDate: daysAgo(90), acquisitionCost: 450 }, // 13
+    { name: "Conference Table", categoryId: furniture.id, condition: "GOOD", location: "HQ Floor 1", acquisitionDate: daysAgo(1460), acquisitionCost: 2000 }, // 14
+    { name: "Ford Transit Delivery Van", categoryId: vehicles.id, condition: "FAIR", location: "HQ Garage", acquisitionDate: daysAgo(1825), acquisitionCost: 28000 }, // 15
+    { name: "Toyota Camry Company Car", categoryId: vehicles.id, condition: "GOOD", location: "HQ Garage", acquisitionDate: daysAgo(730), acquisitionCost: 32000 }, // 16
+    { name: "Warehouse Forklift", categoryId: vehicles.id, condition: "POOR", location: "Warehouse", acquisitionDate: daysAgo(2190), acquisitionCost: 18000 }, // 17
+    { name: "Cisco Network Switch", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(730), acquisitionCost: 1200 }, // 18
+    { name: "Dell Server Rack", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(1095), acquisitionCost: 8500 }, // 19
+    { name: "UPS Battery Backup", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(365), acquisitionCost: 600 }, // 20
+    { name: "Wireless Router", categoryId: itEquipment.id, condition: "FAIR", location: "HQ Floor 2", acquisitionDate: daysAgo(1095), acquisitionCost: 200 }, // 21
+    { name: "Desk Lamp", categoryId: officeSupplies.id, condition: "NEW", location: "Warehouse", acquisitionDate: daysAgo(60), acquisitionCost: 40 }, // 22
+    { name: "Whiteboard", categoryId: officeSupplies.id, condition: "GOOD", location: "HQ Floor 1", acquisitionDate: daysAgo(365), acquisitionCost: 180 }, // 23
+    { name: "Paper Shredder", categoryId: officeSupplies.id, condition: "FAIR", location: "HQ Floor 3", acquisitionDate: daysAgo(1460), acquisitionCost: 120 }, // 24
+    { name: "Conference Room B2", categoryId: furniture.id, condition: "GOOD", location: "HQ Floor 1", isBookable: true, acquisitionDate: daysAgo(1000), acquisitionCost: 0 }, // 25
+    { name: "Meeting Pod A1", categoryId: furniture.id, condition: "GOOD", location: "HQ Floor 1", isBookable: true, acquisitionDate: daysAgo(600), acquisitionCost: 0 }, // 26
+    { name: "Executive Boardroom", categoryId: furniture.id, condition: "GOOD", location: "HQ Floor 3", isBookable: true, acquisitionDate: daysAgo(900), acquisitionCost: 0 }, // 27
+    { name: "Mobile Projector Cart", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 2", isBookable: true, acquisitionDate: daysAgo(400), acquisitionCost: 1100 }, // 28
+    { name: "Shared Company Van", categoryId: vehicles.id, condition: "GOOD", location: "HQ Garage", isBookable: true, acquisitionDate: daysAgo(500), acquisitionCost: 26000 }, // 29
+  ];
+
+  const assets = [];
+  for (const def of assetDefs) {
+    const assetTag = await nextTag();
+    const asset = await prisma.asset.upsert({
+      where: { orgId_assetTag: { orgId: org.id, assetTag } },
+      update: {},
+      create: { orgId: org.id, assetTag, isBookable: false, ...def },
+    });
+    assets.push(asset);
+  }
+
+  // Final lifecycle status pass (allocated/under-maintenance/lost/retired),
+  // applied after insert so the assetDefs table above stays readable.
+  const statusOverrides = {
+    1: "ALLOCATED", 2: "ALLOCATED", 6: "ALLOCATED", 9: "ALLOCATED", 13: "ALLOCATED", 16: "ALLOCATED",
+    4: "UNDER_MAINTENANCE", 17: "UNDER_MAINTENANCE", 18: "UNDER_MAINTENANCE",
+    24: "LOST",
+    12: "RETIRED", 11: "RETIRED",
+  };
+  for (const [idx, status] of Object.entries(statusOverrides)) {
+    await prisma.asset.update({ where: { id: assets[Number(idx)].id }, data: { status } });
+  }
+
+  // ---------------------------------------------------------------------
+  // Allocations — active (matching ALLOCATED assets) + returned history
+  // ---------------------------------------------------------------------
+  const activeAllocationDefs = [
+    { assetIdx: 1, toEmployeeId: employee.id, allocatedById: manager.id, expectedReturnDate: daysFromNow(30) },
+    { assetIdx: 2, toEmployeeId: employee2.id, allocatedById: manager.id, expectedReturnDate: daysFromNow(60) },
+    { assetIdx: 6, toEmployeeId: employee3.id, allocatedById: manager2.id, expectedReturnDate: daysFromNow(14) },
+    { assetIdx: 9, toDepartmentId: engineering.id, allocatedById: manager.id },
+    { assetIdx: 13, toEmployeeId: employee4.id, allocatedById: manager2.id, expectedReturnDate: daysAgo(-5) }, // overdue-ish edge case: past due date already
+    { assetIdx: 16, toDepartmentId: facilities.id, allocatedById: manager2.id },
+  ];
+  for (const def of activeAllocationDefs) {
+    await prisma.allocation.create({
+      data: {
+        assetId: assets[def.assetIdx].id,
+        toEmployeeId: def.toEmployeeId ?? null,
+        toDepartmentId: def.toDepartmentId ?? null,
+        allocatedById: def.allocatedById,
+        allocatedAt: daysAgo(20),
+        expectedReturnDate: def.expectedReturnDate ?? null,
+      },
+    });
+  }
+
+  const returnedAllocationDefs = [
+    { assetIdx: 0, toEmployeeId: employee5.id, allocatedById: manager.id, returnCondition: "GOOD", notes: "Returned on team transfer" },
+    { assetIdx: 5, toEmployeeId: employee2.id, allocatedById: manager.id, returnCondition: "GOOD", notes: "No longer needed" },
+    { assetIdx: 10, toDepartmentId: engineering.id, allocatedById: manager2.id, returnCondition: "FAIR", notes: "Desk reassigned" },
+    { assetIdx: 14, toEmployeeId: employee3.id, allocatedById: manager.id, returnCondition: "GOOD", notes: "Meeting room furniture consolidated" },
+  ];
+  for (const def of returnedAllocationDefs) {
+    await prisma.allocation.create({
+      data: {
+        assetId: assets[def.assetIdx].id,
+        toEmployeeId: def.toEmployeeId ?? null,
+        toDepartmentId: def.toDepartmentId ?? null,
+        allocatedById: def.allocatedById,
+        allocatedAt: daysAgo(90),
+        returnedAt: daysAgo(45),
+        returnCondition: def.returnCondition,
+        checkInNotes: def.notes,
+        status: "RETURNED",
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Transfer requests
+  // ---------------------------------------------------------------------
+  await prisma.transferRequest.create({
+    data: {
+      assetId: assets[1].id,
+      fromEmployeeId: employee.id,
+      toEmployeeId: employee2.id,
+      requestedById: employee.id,
+      reason: "Moving to a different team, handing off laptop",
+      status: "REQUESTED",
+    },
+  });
+  await prisma.transferRequest.create({
+    data: {
+      assetId: assets[2].id,
+      fromEmployeeId: employee3.id,
+      toEmployeeId: employee2.id,
+      requestedById: employee3.id,
+      approvedById: manager.id,
+      reason: "Reassigned after role change",
+      status: "COMPLETED",
+      decidedAt: daysAgo(30),
+    },
+  });
+  await prisma.transferRequest.create({
+    data: {
+      assetId: assets[13].id,
+      fromEmployeeId: employee4.id,
+      toEmployeeId: employee5.id,
+      requestedById: employee4.id,
+      approvedById: manager2.id,
+      reason: "Requested a spare chair for home office",
+      status: "REJECTED",
+      decidedAt: daysAgo(15),
+    },
+  });
+
+  // ---------------------------------------------------------------------
+  // Bookings — 5 bookable assets, non-overlapping per asset, mixed status
+  // ---------------------------------------------------------------------
+  const bookingDefs = [
+    { assetIdx: 25, bookedById: employee.id, title: "Sprint planning", start: atHour(daysAgo(2), 9), end: atHour(daysAgo(2), 10), status: "COMPLETED" },
+    { assetIdx: 25, bookedById: depthead.id, onBehalfOfDeptId: engineering.id, title: "Design review", start: atHour(daysAgo(1), 14), end: atHour(daysAgo(1), 15), status: "COMPLETED" },
+    { assetIdx: 25, bookedById: manager.id, title: "Vendor call", start: atHour(daysFromNow(1), 10), end: atHour(daysFromNow(1), 11), status: "UPCOMING" },
+    { assetIdx: 26, bookedById: employee2.id, title: "1:1 sync", start: atHour(daysAgo(3), 11), end: atHour(daysAgo(3), 12), status: "COMPLETED" },
+    { assetIdx: 26, bookedById: employee3.id, title: "Interview", start: atHour(daysFromNow(2), 9), end: atHour(daysFromNow(2), 9, 30), status: "UPCOMING" },
+    { assetIdx: 26, bookedById: employee4.id, title: "Retro", start: atHour(daysFromNow(2), 15), end: atHour(daysFromNow(2), 16), status: "UPCOMING" },
+    { assetIdx: 27, bookedById: admin.id, title: "Board meeting", start: atHour(daysAgo(1), 9), end: atHour(daysAgo(1), 11), status: "COMPLETED" },
+    { assetIdx: 27, bookedById: manager2.id, title: "Budget review", start: atHour(daysFromNow(3), 13), end: atHour(daysFromNow(3), 14), status: "UPCOMING" },
+    { assetIdx: 28, bookedById: employee5.id, title: "Training session", start: atHour(daysAgo(2), 13), end: atHour(daysAgo(2), 14), status: "COMPLETED" },
+    { assetIdx: 28, bookedById: employee.id, title: "Client demo", start: atHour(daysFromNow(1), 16), end: atHour(daysFromNow(1), 17), status: "UPCOMING" },
+    { assetIdx: 29, bookedById: depthead2.id, title: "Site visit", start: atHour(daysAgo(4), 8), end: atHour(daysAgo(4), 12), status: "COMPLETED" },
+    { assetIdx: 29, bookedById: manager.id, title: "Offsite transport", start: atHour(daysFromNow(5), 8), end: atHour(daysFromNow(5), 17), status: "UPCOMING" },
+    { assetIdx: 29, bookedById: employee2.id, title: "Cancelled pickup", start: atHour(daysFromNow(2), 10), end: atHour(daysFromNow(2), 11), status: "CANCELLED" },
+  ];
+  for (const def of bookingDefs) {
+    await prisma.booking.create({
+      data: {
+        assetId: assets[def.assetIdx].id,
+        bookedById: def.bookedById,
+        onBehalfOfDeptId: def.onBehalfOfDeptId ?? null,
+        title: def.title,
+        startTime: def.start,
+        endTime: def.end,
+        status: def.status,
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Maintenance requests — every kanban column + one rejected
+  // ---------------------------------------------------------------------
+  await prisma.maintenanceRequest.create({
+    data: { assetId: assets[3].id, raisedById: employee2.id, description: "Monitor flickering intermittently", priority: "LOW" },
+  });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[4].id, raisedById: employee3.id, description: "Paper jam on every print job", priority: "MEDIUM",
+      status: "APPROVED", approvedById: manager.id, approvedAt: daysAgo(3),
+    },
+  });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[17].id, raisedById: depthead2.id, description: "Hydraulic leak under the mast", priority: "HIGH",
+      status: "TECHNICIAN_ASSIGNED", approvedById: manager2.id, approvedAt: daysAgo(5), technicianId: employee5.id,
+    },
+  });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[18].id, raisedById: admin.id, description: "Switch keeps rebooting under load", priority: "URGENT",
+      status: "IN_PROGRESS", approvedById: manager.id, approvedAt: daysAgo(4), technicianId: employee4.id,
+    },
+  });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[7].id, raisedById: employee4.id, description: "Screen cracked after a drop", priority: "MEDIUM",
+      status: "RESOLVED", approvedById: manager.id, approvedAt: daysAgo(20), technicianId: employee5.id,
+      resolvedAt: daysAgo(15), resolutionNotes: "Screen replaced under warranty",
+    },
+  });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[14].id, raisedById: employee3.id, description: "Wobbly leg on the conference table", priority: "LOW",
+      status: "RESOLVED", approvedById: manager2.id, approvedAt: daysAgo(25), technicianId: employee4.id,
+      resolvedAt: daysAgo(22), resolutionNotes: "Tightened and re-shimmed",
+    },
+  });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[8].id, raisedById: employee5.id, description: "Requesting a newer webcam model", priority: "LOW",
+      status: "REJECTED", approvedById: manager.id, approvedAt: daysAgo(10),
+    },
+  });
+
+  // ---------------------------------------------------------------------
+  // Audit cycles — one CLOSED (with discrepancy report), one IN_PROGRESS
+  // ---------------------------------------------------------------------
+  const closedCycle = await prisma.auditCycle.create({
+    data: {
+      orgId: org.id,
+      name: "Q2 Engineering Audit",
+      scopeDeptId: engineering.id,
+      startDate: daysAgo(20),
+      endDate: daysAgo(10),
+      status: "CLOSED",
+      createdById: admin.id,
+      closedById: admin.id,
+      closedAt: daysAgo(9),
+    },
+  });
+  await prisma.auditAssignment.createMany({
+    data: [
+      { cycleId: closedCycle.id, auditorId: manager.id },
+      { cycleId: closedCycle.id, auditorId: depthead.id },
+    ],
+  });
+  const closedScopeItems = [
+    { assetIdx: 0, verification: "VERIFIED", auditedById: manager.id },
+    { assetIdx: 1, verification: "VERIFIED", auditedById: depthead.id },
+    { assetIdx: 22, verification: "MISSING", auditedById: manager.id, notes: "Not found at listed desk" },
+    { assetIdx: 14, verification: "VERIFIED", auditedById: depthead.id },
+    { assetIdx: 23, verification: "DAMAGED", auditedById: manager.id, notes: "Surface cracked" },
+  ];
+  for (const item of closedScopeItems) {
+    await prisma.auditItem.create({
+      data: {
+        cycleId: closedCycle.id,
+        assetId: assets[item.assetIdx].id,
+        verification: item.verification,
+        auditedById: item.auditedById,
+        notes: item.notes ?? null,
+        auditedAt: daysAgo(9),
+      },
+    });
+  }
+  // Mirror what the real close-endpoint transaction does: Missing -> Lost,
+  // Damaged -> auto-raised Pending maintenance request, asset status untouched.
+  await prisma.asset.update({ where: { id: assets[22].id }, data: { status: "LOST" } });
+  await prisma.maintenanceRequest.create({
+    data: {
+      assetId: assets[23].id,
+      raisedById: admin.id,
+      description: 'Flagged damaged during audit cycle "Q2 Engineering Audit": Surface cracked',
+      priority: "MEDIUM",
+    },
+  });
+  await prisma.discrepancyReport.create({
+    data: {
+      cycleId: closedCycle.id,
+      summary: {
+        totalItems: closedScopeItems.length,
+        verified: 3,
+        missing: 1,
+        damaged: 1,
+        stillPending: 0,
+        flaggedAssets: [
+          { assetId: assets[22].id, assetTag: assets[22].assetTag, assetName: assets[22].name, verification: "MISSING" },
+          { assetId: assets[23].id, assetTag: assets[23].assetTag, assetName: assets[23].name, verification: "DAMAGED" },
+        ],
+      },
+      generatedAt: daysAgo(9),
+    },
+  });
+
+  const inProgressCycle = await prisma.auditCycle.create({
+    data: {
+      orgId: org.id,
+      name: "HQ Floor 1 Spot Check",
+      scopeLocation: "HQ Floor 1",
+      startDate: daysAgo(3),
+      endDate: daysFromNow(4),
+      status: "IN_PROGRESS",
+      createdById: manager.id,
+    },
+  });
+  await prisma.auditAssignment.create({ data: { cycleId: inProgressCycle.id, auditorId: manager2.id } });
+  const inProgressScope = [
+    { assetIdx: 4, verification: "VERIFIED", auditedById: manager2.id },
+    { assetIdx: 13, verification: "VERIFIED", auditedById: manager2.id },
+    { assetIdx: 25, verification: "VERIFIED", auditedById: manager2.id },
+    { assetIdx: 14, verification: "PENDING" },
+    { assetIdx: 23, verification: "PENDING" },
+    { assetIdx: 26, verification: "PENDING" },
+  ];
+  for (const item of inProgressScope) {
+    await prisma.auditItem.create({
+      data: {
+        cycleId: inProgressCycle.id,
+        assetId: assets[item.assetIdx].id,
+        verification: item.verification,
+        auditedById: item.auditedById ?? null,
+        auditedAt: item.auditedById ? daysAgo(1) : null,
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Activity log — a handful of entries so the feed isn't empty on first load
+  // ---------------------------------------------------------------------
+  const activityDefs = [
+    { action: "asset.registered", entityType: "asset", entityId: assets[0].id, actorId: manager.id, metadata: { assetTag: assets[0].assetTag } },
+    { action: "asset.allocated", entityType: "allocation", entityId: assets[1].id, actorId: manager.id, metadata: { assetTag: assets[1].assetTag } },
+    { action: "transfer.requested", entityType: "transfer", entityId: assets[1].id, actorId: employee.id, metadata: { assetTag: assets[1].assetTag } },
+    { action: "booking.confirmed", entityType: "booking", entityId: assets[25].id, actorId: employee.id, metadata: { assetTag: assets[25].assetTag } },
+    { action: "maintenance.raised", entityType: "maintenance", entityId: assets[3].id, actorId: employee2.id, metadata: { assetTag: assets[3].assetTag } },
+    { action: "maintenance.resolved", entityType: "maintenance", entityId: assets[7].id, actorId: manager.id, metadata: { assetTag: assets[7].assetTag } },
+    { action: "audit.cycle_closed", entityType: "audit_cycle", entityId: closedCycle.id, actorId: admin.id, metadata: { name: closedCycle.name } },
+    { action: "audit.cycle_created", entityType: "audit_cycle", entityId: inProgressCycle.id, actorId: manager.id, metadata: { name: inProgressCycle.name } },
+  ];
+  for (const def of activityDefs) {
+    await prisma.activityLog.create({
+      data: { orgId: org.id, action: def.action, entityType: def.entityType, entityId: def.entityId, actorId: def.actorId, metadata: def.metadata },
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  console.log(`Seeded org "${org.name}":`);
+  console.log(`  ${activeUserDefs.length} active users, ${pendingDefs.length} pending-approval users`);
+  console.log(`  4 departments (with 1 parent/child hierarchy), 5 asset categories`);
+  console.log(`  ${assets.length} assets (25 individually-allocatable + 5 bookable)`);
+  console.log(`  ${activeAllocationDefs.length} active + ${returnedAllocationDefs.length} returned allocations, 3 transfer requests`);
+  console.log(`  ${bookingDefs.length} bookings, 7 maintenance requests, 2 audit cycles (1 closed + 1 in progress)`);
+  console.log(`  8 activity log entries`);
+  console.log(`Demo logins (password: ${DEMO_PASSWORD}):`);
+  for (const def of activeUserDefs) console.log(`  ${def.email} — ${def.role}`);
+  console.log(`Pending-approval users (no password yet): ${pendingDefs.map((d) => d.email).join(", ")}`);
 }
 
 main()

@@ -10,6 +10,10 @@ export const organizationsEntityConfig: EntityConfig = {
   schema: OrganizationWriteSchema,
   defaultSort: { field: 'createdAt', order: 'desc' },
   search: { indexEnv: 'MEILISEARCH_ORGANIZATIONS_INDEX' },
+  // An org's own row is its tenant boundary, not a foreign-keyed child of
+  // one — scope every operation to "id equals my own orgId" so this table
+  // can never list/edit/delete another tenant's organization.
+  tenantScope: (orgId) => ({ id: orgId }),
   columns: [
     {
       key: 'name',
@@ -27,41 +31,12 @@ export const organizationsEntityConfig: EntityConfig = {
       visibleByDefault: true,
     },
     {
-      key: 'industry',
-      label: 'Industry',
-      type: 'text',
-      filterable: true,
-      searchable: true,
-      visibleByDefault: true,
-    },
-    {
-      key: 'region',
-      label: 'Region',
-      type: 'text',
-      filterable: true,
-      searchable: true,
-      visibleByDefault: true,
-    },
-    {
-      key: 'plan',
-      label: 'Plan',
-      type: 'select',
-      options: [
-        { label: 'Starter', value: 'STARTER' },
-        { label: 'Growth', value: 'GROWTH' },
-        { label: 'Enterprise', value: 'ENTERPRISE' },
-      ],
-      sortable: true,
-      filterable: true,
-      searchable: true,
-      visibleByDefault: true,
-    },
-    {
-      key: 'seats',
-      label: 'Seats',
+      key: 'assetSeq',
+      label: 'Assets registered',
       type: 'number',
       sortable: true,
       visibleByDefault: true,
+      editable: false,
     },
     {
       key: 'createdAt',
@@ -73,9 +48,15 @@ export const organizationsEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'MODERATOR'],
-    create: ['ADMIN', 'MODERATOR'],
-    update: ['ADMIN', 'MODERATOR'],
-    delete: ['ADMIN', 'MODERATOR'],
+    read: ['ADMIN', 'ASSET_MANAGER'],
+    // Creating a new org row here is unreachable-by-design once tenantScope
+    // is applied (a freshly created row's id can never equal the caller's
+    // existing orgId, so it would immediately vanish from every subsequent
+    // list/read) and deleting your own org is a catastrophic, irreversible,
+    // cross-cutting action that has no business being a generic bulk-select
+    // table action — both are intentionally disabled.
+    create: [],
+    update: ['ADMIN', 'ASSET_MANAGER'],
+    delete: [],
   },
 };

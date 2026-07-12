@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { readApiResponse } from "@/lib/api-client"
 import { dashboardHrefForRole } from "@/lib/navigation"
-import type { UserRole } from "@prisma/client"
+import type { Role } from "@prisma/client"
 
 type AuthMode = "login" | "signup"
 
@@ -23,7 +23,7 @@ type AuthFormProps = {
 type AuthResponse = {
   data?: {
     user?: {
-      role?: UserRole
+      role?: Role
     }
   }
 }
