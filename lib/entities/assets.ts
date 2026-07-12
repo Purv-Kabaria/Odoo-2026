@@ -1,107 +1,20 @@
-import { AssetWriteSchema } from '@/types/entity-types';
+import type { SearchableEntity } from "./types";
 
-import type { EntityConfig } from './types';
-
-export const assetsEntityConfig: EntityConfig = {
-  key: 'assets',
-  label: 'Assets',
-  singularLabel: 'Asset',
-  prismaModel: 'asset',
-  schema: AssetWriteSchema,
-  defaultSort: { field: 'createdAt', order: 'desc' },
-  search: { indexEnv: 'MEILISEARCH_ASSETS_INDEX' },
+/**
+ * Columns metadata only, for Meilisearch indexing reuse via
+ * `lib/meilisearch.ts` — Assets aren't registered in `entityRegistry`
+ * since create/update need bespoke logic (tag generation, custom-field
+ * validation) the generic CRUD engine can't express.
+ */
+export const assetSearchConfig: SearchableEntity = {
+  key: "assets",
+  search: { indexEnv: "MEILISEARCH_ASSETS_INDEX" },
   columns: [
-    {
-      key: 'assetTag',
-      label: 'Asset Tag',
-      type: 'text',
-      sortable: true,
-      searchable: true,
-      visibleByDefault: true,
-    },
-    {
-      key: 'name',
-      label: 'Name',
-      type: 'text',
-      sortable: true,
-      searchable: true,
-      visibleByDefault: true,
-    },
-    {
-      key: 'category',
-      label: 'Category',
-      type: 'text',
-      filterable: true,
-      searchable: true,
-      visibleByDefault: true,
-    },
-    {
-      key: 'serialNumber',
-      label: 'Serial Number',
-      type: 'text',
-      searchable: true,
-      visibleByDefault: false,
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      type: 'select',
-      options: [
-        { label: 'Available', value: 'AVAILABLE' },
-        { label: 'Allocated', value: 'ALLOCATED' },
-        { label: 'Reserved', value: 'RESERVED' },
-        { label: 'Under Maintenance', value: 'UNDER_MAINTENANCE' },
-        { label: 'Lost', value: 'LOST' },
-        { label: 'Retired', value: 'RETIRED' },
-        { label: 'Disposed', value: 'DISPOSED' },
-      ],
-      sortable: true,
-      filterable: true,
-      searchable: true,
-      visibleByDefault: true,
-    },
-    {
-      key: 'condition',
-      label: 'Condition',
-      type: 'select',
-      options: [
-        { label: 'New', value: 'NEW' },
-        { label: 'Good', value: 'GOOD' },
-        { label: 'Fair', value: 'FAIR' },
-        { label: 'Poor', value: 'POOR' },
-        { label: 'Damaged', value: 'DAMAGED' },
-      ],
-      filterable: true,
-      visibleByDefault: true,
-    },
-    {
-      key: 'location',
-      label: 'Location',
-      type: 'text',
-      filterable: true,
-      searchable: true,
-      visibleByDefault: true,
-    },
-    {
-      key: 'isBookable',
-      label: 'Bookable',
-      type: 'boolean',
-      filterable: true,
-      visibleByDefault: false,
-    },
-    {
-      key: 'createdAt',
-      label: 'Registered',
-      type: 'date',
-      sortable: true,
-      visibleByDefault: true,
-      editable: false,
-    },
+    { key: "name", label: "Name", type: "text", searchable: true, sortable: true },
+    { key: "assetTag", label: "Tag", type: "text", searchable: true, sortable: true },
+    { key: "serialNumber", label: "Serial", type: "text", searchable: true },
+    { key: "status", label: "Status", type: "select", filterable: true, sortable: true, options: [] },
+    { key: "location", label: "Location", type: "text", filterable: true },
+    { key: "createdAt", label: "Created", type: "date", sortable: true },
   ],
-  permissions: {
-    read: ['ADMIN', 'MODERATOR', 'USER'],
-    create: ['ADMIN', 'MODERATOR'],
-    update: ['ADMIN', 'MODERATOR'],
-    delete: ['ADMIN'],
-  },
 };

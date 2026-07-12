@@ -73,12 +73,13 @@ export async function POST(req: Request) {
     });
 
     void recordActivityEvent({
-      action: "LLM_REQUESTED",
+      orgId: user.orgId,
+      action: "llm.requested",
       actorId: user.id,
       entityType: "llm",
-      summary: "LLM chat completion requested",
-      requestId,
+      entityId: user.id,
       metadata: {
+        requestId,
         messageCount: validation.data.messages.length,
         maxTokens: validation.data.maxTokens,
         totalTokens: completion.data.usage?.total_tokens ?? null,
