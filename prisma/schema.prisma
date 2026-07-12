@@ -29,6 +29,10 @@ enum Role {
 }
 
 enum ActiveStatus {
+  // Admin-invited users start here: no password set yet, cannot sign in
+  // until they accept the invite (setting a password promotes to ACTIVE
+  // directly — no separate approval step, since inviting is itself the
+  // vetting act). Self-service /signup users skip this and start ACTIVE.
   PENDING_APPROVAL
   ACTIVE
   INACTIVE
@@ -119,7 +123,7 @@ enum NotificationType {
 // ---------------------------------------------------------------------------
 
 model Organization {
-  id        String   @id @default(uuid(7))
+  id        String   @id @default(cuid())
   name      String
   slug      String   @unique
   // Monotonic per-org counter for AF-#### tag generation. Incremented inside
@@ -142,58 +146,58 @@ model Organization {
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String       @id @default(uuid(7))
+  id           String       @id @default(cuid())
   orgId        String
   email        String       @unique
-  passwordHash String?      // nullable — invited users have none until they set one
+  // Nullable: an admin-invited user (status PENDING_APPROVAL) has no
+  // password until they accept the invite. Every other status requires
+  // one — enforced by the User_password_or_pending_check constraint in
+  // the manual migration, not just here.
+  passwordHash String?
   name         String
   role         Role         @default(EMPLOYEE)
-  status       ActiveStatus @default(PENDING_APPROVAL)
+  status       ActiveStatus @default(ACTIVE)
   departmentId String?
   invitedById  String?
   invitedAt    DateTime?
-  approvedById String?
-  approvedAt   DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   department Department?  @relation("DeptMembers", fields: [departmentId], references: [id], onDelete: SetNull)
   invitedBy  User?        @relation("UserInvites", fields: [invitedById], references: [id], onDelete: SetNull)
-  approvedBy User?        @relation("UserApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
 
-  invitedUsers         User[]               @relation("UserInvites")
-  approvedUsers        User[]               @relation("UserApprovals")
-  headedDepartments    Department[]         @relation("DeptHead")
-  sessions             AuthSession[]
-  resetTokens          PasswordResetToken[]
-  allocationsHeld      Allocation[]         @relation("AllocationHolder")
-  allocationsMade      Allocation[]         @relation("AllocationActor")
-  transfersRequested   TransferRequest[]    @relation("TransferRequester")
-  transfersFrom        TransferRequest[]    @relation("TransferFrom")
-  transfersTo          TransferRequest[]    @relation("TransferTo")
-  transfersApproved    TransferRequest[]    @relation("TransferApprover")
-  bookings             Booking[]            @relation("BookingOwner")
-  maintenanceRaised    MaintenanceRequest[] @relation("MaintenanceRaiser")
-  maintenanceApproved  MaintenanceRequest[] @relation("MaintenanceApprover")
-  maintenanceAssigned  MaintenanceRequest[] @relation("MaintenanceTechnician")
-  auditCyclesCreated   AuditCycle[]         @relation("AuditCreator")
-  auditorAssignments   AuditAssignment[]
-  auditItemsRecorded   AuditItem[]          @relation("AuditItemAuditor")
-  notifications        Notification[]
-  activityLogs         ActivityLog[]        @relation("LogActor")
+  invitedUsers        User[]               @relation("UserInvites")
+  headedDepartments   Department[]         @relation("DeptHead")
+  sessions            AuthSession[]
+  resetTokens         PasswordResetToken[]
+  allocationsHeld     Allocation[]         @relation("AllocationHolder")
+  allocationsMade     Allocation[]         @relation("AllocationActor")
+  transfersRequested  TransferRequest[]    @relation("TransferRequester")
+  transfersFrom       TransferRequest[]    @relation("TransferFrom")
+  transfersTo         TransferRequest[]    @relation("TransferTo")
+  transfersApproved   TransferRequest[]    @relation("TransferApprover")
+  bookings            Booking[]            @relation("BookingOwner")
+  maintenanceRaised   MaintenanceRequest[] @relation("MaintenanceRaiser")
+  maintenanceApproved MaintenanceRequest[] @relation("MaintenanceApprover")
+  maintenanceAssigned MaintenanceRequest[] @relation("MaintenanceTechnician")
+  auditCyclesCreated  AuditCycle[]         @relation("AuditCreator")
+  auditCyclesClosed   AuditCycle[]         @relation("AuditCloser")
+  auditorAssignments  AuditAssignment[]
+  auditItemsRecorded  AuditItem[]          @relation("AuditItemAuditor")
+  notifications       Notification[]
+  activityLogs        ActivityLog[]        @relation("LogActor")
 
   @@index([orgId])
   @@index([departmentId])
   @@index([invitedById])
-  @@index([approvedById])
   // Directory list: filter by department/role/status within an org.
   @@index([orgId, role])
   @@index([orgId, status])
 }
 
 model Department {
-  id                 String       @id @default(uuid(7))
+  id                 String       @id @default(cuid())
   orgId              String
   name               String
   headId             String?
@@ -207,9 +211,10 @@ model Department {
   parent   Department?  @relation("DeptHierarchy", fields: [parentDepartmentId], references: [id], onDelete: SetNull)
   children Department[] @relation("DeptHierarchy")
 
-  members             User[]       @relation("DeptMembers")
-  allocationsToDept   Allocation[] @relation("AllocationDept")
-  bookingsOnBehalf    Booking[]    @relation("BookingDept")
+  members           User[]       @relation("DeptMembers")
+  allocationsToDept Allocation[] @relation("AllocationDept")
+  bookingsOnBehalf  Booking[]    @relation("BookingDept")
+  auditCyclesScoped AuditCycle[]
 
   @@unique([orgId, name])
   @@index([orgId])
@@ -218,17 +223,17 @@ model Department {
 }
 
 model AssetCategory {
-  id        String   @id @default(uuid(7))
-  orgId     String
-  name      String
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
   // Category-specific field *definitions* (e.g. Electronics -> warrantyMonths).
   // Shape: [{ key, label, type, required }]. Per-asset values live on
   // Asset.customFields. JSON is deliberate: field sets are sparse and
   // heterogeneous across categories — a normalized EAV table would be heavier
   // for no query benefit, since these are never filtered on in a hot path.
   fieldSchema Json?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   assets Asset[]
@@ -242,7 +247,7 @@ model AssetCategory {
 // ---------------------------------------------------------------------------
 
 model Asset {
-  id              String         @id @default(uuid(7))
+  id              String         @id @default(cuid())
   orgId           String
   assetTag        String // AF-0001, generated per-org; unique within org (see @@unique)
   name            String
@@ -269,6 +274,7 @@ model Asset {
   bookings            Booking[]
   maintenanceRequests MaintenanceRequest[]
   auditItems          AuditItem[]
+  // pg_trgm GIN index on `name` added in manual migration for fuzzy search.
 
   @@unique([orgId, assetTag])
   @@unique([orgId, serialNumber])
@@ -282,7 +288,6 @@ model Asset {
   @@index([orgId, status, createdAt])
   @@index([orgId, location])
   @@index([serialNumber]) // exact-match search path
-  // pg_trgm GIN index on `name` added in manual migration for fuzzy search.
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +295,7 @@ model Asset {
 // ---------------------------------------------------------------------------
 
 model Allocation {
-  id                 String           @id @default(uuid(7))
+  id                 String           @id @default(cuid())
   assetId            String
   // Allocation target is EITHER an employee OR a department, never both/neither.
   // Enforced by a check constraint in the manual migration.
@@ -310,6 +315,9 @@ model Allocation {
   toEmployee   User?       @relation("AllocationHolder", fields: [toEmployeeId], references: [id], onDelete: SetNull)
   toDepartment Department? @relation("AllocationDept", fields: [toDepartmentId], references: [id], onDelete: SetNull)
   allocatedBy  User        @relation("AllocationActor", fields: [allocatedById], references: [id])
+  // Partial-unique "one active allocation per asset" and the overdue-returns
+  // partial index (returnedAt IS NULL AND expectedReturnDate < now) are added
+  // in the manual migration.
 
   @@index([assetId])
   @@index([toEmployeeId])
@@ -317,29 +325,26 @@ model Allocation {
   @@index([allocatedById])
   // "assets held by X" and per-asset history sort by allocatedAt.
   @@index([assetId, allocatedAt])
-  // Partial-unique "one active allocation per asset" and the overdue-returns
-  // partial index (returnedAt IS NULL AND expectedReturnDate < now) are added
-  // in the manual migration.
 }
 
 model TransferRequest {
-  id            String         @id @default(uuid(7))
-  assetId       String
+  id             String         @id @default(cuid())
+  assetId        String
   fromEmployeeId String?
-  toEmployeeId  String
-  requestedById String
-  approvedById  String?
-  reason        String
-  status        TransferStatus @default(REQUESTED)
-  decidedAt     DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  toEmployeeId   String
+  requestedById  String
+  approvedById   String?
+  reason         String
+  status         TransferStatus @default(REQUESTED)
+  decidedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  asset       Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  asset        Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
   fromEmployee User? @relation("TransferFrom", fields: [fromEmployeeId], references: [id], onDelete: SetNull)
-  toEmployee  User  @relation("TransferTo", fields: [toEmployeeId], references: [id])
-  requestedBy User  @relation("TransferRequester", fields: [requestedById], references: [id])
-  approvedBy  User? @relation("TransferApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  toEmployee   User  @relation("TransferTo", fields: [toEmployeeId], references: [id])
+  requestedBy  User  @relation("TransferRequester", fields: [requestedById], references: [id])
+  approvedBy   User? @relation("TransferApprover", fields: [approvedById], references: [id], onDelete: SetNull)
 
   @@index([assetId])
   @@index([toEmployeeId])
@@ -353,21 +358,23 @@ model TransferRequest {
 // ---------------------------------------------------------------------------
 
 model Booking {
-  id                 String        @id @default(uuid(7))
-  assetId            String
-  bookedById         String
-  onBehalfOfDeptId   String?
-  title              String?
-  startTime          DateTime
-  endTime            DateTime
-  status             BookingStatus @default(UPCOMING)
-  reminderSentAt     DateTime?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  id               String        @id @default(cuid())
+  assetId          String
+  bookedById       String
+  onBehalfOfDeptId String?
+  title            String?
+  startTime        DateTime
+  endTime          DateTime
+  status           BookingStatus @default(UPCOMING)
+  reminderSentAt   DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   asset          Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
   bookedBy       User        @relation("BookingOwner", fields: [bookedById], references: [id])
   onBehalfOfDept Department? @relation("BookingDept", fields: [onBehalfOfDeptId], references: [id], onDelete: SetNull)
+  // GiST exclusion constraint (no overlapping non-cancelled bookings per asset)
+  // + endTime > startTime check are in the manual migration.
 
   @@index([bookedById])
   @@index([onBehalfOfDeptId])
@@ -375,8 +382,6 @@ model Booking {
   // check scans before the DB exclusion constraint has the final say.
   @@index([assetId, startTime])
   @@index([status, startTime]) // reminder sweep / lifecycle transitions
-  // GiST exclusion constraint (no overlapping non-cancelled bookings per asset)
-  // + endTime > startTime check are in the manual migration.
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +389,7 @@ model Booking {
 // ---------------------------------------------------------------------------
 
 model MaintenanceRequest {
-  id              String              @id @default(uuid(7))
+  id              String              @id @default(cuid())
   assetId         String
   raisedById      String
   approvedById    String?
@@ -416,33 +421,39 @@ model MaintenanceRequest {
 // ---------------------------------------------------------------------------
 
 model AuditCycle {
-  id           String           @id @default(uuid(7))
-  orgId        String
-  name         String
-  scopeDeptId  String?
+  id            String           @id @default(cuid())
+  orgId         String
+  name          String
+  scopeDeptId   String?
   scopeLocation String?
-  startDate    DateTime
-  endDate      DateTime
-  status       AuditCycleStatus @default(PLANNED)
-  createdById  String
-  closedAt     DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  startDate     DateTime
+  endDate       DateTime
+  status        AuditCycleStatus @default(PLANNED)
+  createdById   String
+  closedById    String?
+  closedAt      DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
-  org        Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  createdBy  User              @relation("AuditCreator", fields: [createdById], references: [id])
-  auditors   AuditAssignment[]
-  items      AuditItem[]
+  org               Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy         User               @relation("AuditCreator", fields: [createdById], references: [id])
+  closedBy          User?              @relation("AuditCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  scopeDept         Department?        @relation(fields: [scopeDeptId], references: [id], onDelete: SetNull)
+  auditors          AuditAssignment[]
+  items             AuditItem[]
   discrepancyReport DiscrepancyReport?
+  // endDate >= startDate and scope-at-most-one-of(dept,location) checks in
+  // the manual migration.
 
   @@index([orgId])
   @@index([createdById])
+  @@index([closedById])
+  @@index([scopeDeptId])
   @@index([orgId, status])
-  // endDate >= startDate check in manual migration.
 }
 
 model AuditAssignment {
-  id        String   @id @default(uuid(7))
+  id        String   @id @default(cuid())
   cycleId   String
   auditorId String
   createdAt DateTime @default(now())
@@ -456,7 +467,7 @@ model AuditAssignment {
 }
 
 model AuditItem {
-  id           String            @id @default(uuid(7))
+  id           String            @id @default(cuid())
   cycleId      String
   assetId      String
   verification AuditVerification @default(PENDING)
@@ -478,7 +489,7 @@ model AuditItem {
 }
 
 model DiscrepancyReport {
-  id          String   @id @default(uuid(7))
+  id          String   @id @default(cuid())
   cycleId     String   @unique
   // Snapshot taken at cycle close: counts + the flagged asset list, frozen so
   // the report is stable even if asset state changes afterward.
@@ -493,7 +504,7 @@ model DiscrepancyReport {
 // ---------------------------------------------------------------------------
 
 model Notification {
-  id                String           @id @default(uuid(7))
+  id                String           @id @default(cuid())
   userId            String
   type              NotificationType
   title             String
@@ -511,7 +522,7 @@ model Notification {
 }
 
 model ActivityLog {
-  id         String   @id @default(uuid(7))
+  id         String   @id @default(cuid())
   orgId      String
   actorId    String?
   action     String // e.g. "asset.allocated", "maintenance.approved"
@@ -533,21 +544,21 @@ model ActivityLog {
 // ---------------------------------------------------------------------------
 
 model AuthSession {
-  id        String   @id @default(uuid(7))
+  id        String   @id @default(cuid())
   userId    String
   tokenHash String   @unique // sha256 of the opaque cookie value; raw never stored
   expiresAt DateTime
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
   // Active-session lookup gets a partial index (WHERE expiresAt > now) in the
   // manual migration.
+
+  @@index([userId])
 }
 
 model PasswordResetToken {
-  id        String    @id @default(uuid(7))
+  id        String    @id @default(cuid())
   userId    String
   tokenHash String    @unique
   expiresAt DateTime

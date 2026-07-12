@@ -44,9 +44,9 @@ export const organizationsEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'ASSET_MANAGER'],
-    create: ['ADMIN', 'ASSET_MANAGER'],
-    update: ['ADMIN', 'ASSET_MANAGER'],
-    delete: ['ADMIN', 'ASSET_MANAGER'],
+    read: ['ADMIN'],
+    create: ['ADMIN'],
+    update: ['ADMIN'],
+    delete: ['ADMIN'],
   },
 };

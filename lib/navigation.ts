@@ -3,6 +3,7 @@ import {
   Boxes,
   Building2,
   CalendarClock,
+  ClipboardCheck,
   Gauge,
   ShieldCheck,
   UserCircle,
@@ -22,10 +23,10 @@ const ALL_ROLES: Role[] = ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYE
 
 export const navigationLinks: NavigationLink[] = [
   {
-    title: "Dashboard",
-    href: "/dashboard",
+    title: "Admin",
+    href: "/admin",
     icon: Gauge,
-    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
+    roles: ["ADMIN"],
   },
   {
     title: "Asset Manager",
@@ -55,6 +56,12 @@ export const navigationLinks: NavigationLink[] = [
     title: "Maintenance",
     href: "/maintenance",
     icon: Wrench,
+    roles: ALL_ROLES,
+  },
+  {
+    title: "Audit",
+    href: "/audit",
+    icon: ClipboardCheck,
     roles: ALL_ROLES,
   },
   {

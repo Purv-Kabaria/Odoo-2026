@@ -8,15 +8,5 @@ export async function GET() {
     return Api.unauthorized("Not signed in");
   }
 
-  return Api.ok({
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      orgId: user.orgId,
-      departmentId: user.departmentId,
-    },
-  });
+  return Api.ok({ user });
 }

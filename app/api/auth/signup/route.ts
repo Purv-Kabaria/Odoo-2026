@@ -1,9 +1,11 @@
-import { Api } from "@/lib/api";
-import { hashPassword } from "@/lib/auth";
-import { logger } from "@/lib/logger";
-import { prisma } from "@/lib/prisma";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
-import { SignupSchema } from "@/types/auth-types";
+import { Api } from '@/lib/api';
+import { createSession, hashPassword, setSessionCookie } from '@/lib/auth';
+import { usersEntityConfig } from '@/lib/entities/users';
+import { logger } from '@/lib/logger';
+import { upsertInSearch } from '@/lib/meilisearch';
+import { prisma } from '@/lib/prisma';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { SignupSchema } from '@/types/auth-types';
 
 const SIGNUP_RATE_LIMIT = 5;
 const SIGNUP_RATE_WINDOW_MS = 60 * 60 * 1000;
@@ -18,9 +20,9 @@ export async function POST(req: Request) {
       SIGNUP_RATE_WINDOW_MS,
     );
     if (!rateLimit.success) {
-      logger.warn("auth.signup.rate_limited", { requestId });
+      logger.warn('auth.signup.rate_limited', { requestId });
       return Api.tooManyRequests(
-        "Too many signup attempts. Try again later.",
+        'Too many signup attempts. Try again later.',
         (rateLimit.resetAt - Date.now()) / 1000,
       );
     }
@@ -30,60 +32,60 @@ export async function POST(req: Request) {
 
     if (!validation.success) {
       return Api.badRequest(
-        "Invalid signup details",
+        'Invalid signup details',
         validation.error.format(),
       );
     }
 
     const { name, email, password } = validation.data;
-
-    // Single-tenant application: just grab the first (and only) organization.
-    const org = await prisma.organization.findFirst({
-      select: { id: true },
-    });
-
-    if (!org) {
-      return Api.internalError("System configuration error: No organization found");
-    }
-
     const { passwordHash } = hashPassword(password);
+
+    // Public signup always creates an EMPLOYEE, never a self-elevated role,
+    // and always attaches to the org provisioned out-of-band — see
+    // AGENTS.md §6 and the problem statement's Screen 1 requirement.
+    // TODO(auth): single-org lookup is a placeholder until invite-based org
+    // assignment lands; flagged for whoever owns the signup flow.
+    const org = await prisma.organization.findFirst({ select: { id: true } });
+    if (!org) {
+      return Api.serviceUnavailable('No organization is set up yet');
+    }
 
     const user = await prisma.user.create({
       data: {
         orgId: org.id,
         name,
         email,
+        role: 'EMPLOYEE',
         passwordHash,
-        role: "EMPLOYEE",
-        status: "PENDING_APPROVAL",
       },
-      select: { id: true, name: true, email: true, role: true, status: true },
     });
+    const session = await createSession(user.id, true);
 
-    logger.info("auth.signup", { requestId, userId: user.id, orgId: org.id });
+    void upsertInSearch(usersEntityConfig, [user]);
+    logger.info('auth.signup', { requestId, userId: user.id });
 
-    // No session issued — user must be approved by an admin first.
-    return Api.created({
-      message: "Account created. An administrator must approve your account before you can sign in.",
+    const response = Api.created({
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
-        status: user.status,
       },
     });
+    setSessionCookie(response, session.token, session.expiresAt);
+
+    return response;
   } catch (error: unknown) {
     if (
-      typeof error === "object" &&
+      typeof error === 'object' &&
       error !== null &&
-      "code" in error &&
-      error.code === "P2002"
+      'code' in error &&
+      error.code === 'P2002'
     ) {
-      return Api.conflict("An account with this email already exists");
+      return Api.conflict('An account with this email already exists');
     }
 
-    logger.error("auth.signup.failed", error, { requestId });
-    return Api.internalError("Failed to create account");
+    logger.error('auth.signup.failed', error, { requestId });
+    return Api.internalError('Failed to create account');
   }
 }
