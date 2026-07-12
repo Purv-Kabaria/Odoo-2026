@@ -2,7 +2,6 @@ import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
-import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { MaintenanceAssignSchema } from "@/types/maintenance-types";
 import { z } from "zod";
@@ -52,16 +51,6 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       entityId: request_.id,
       metadata: { technicianId: technician.id },
     });
-    void (async () => {
-      const asset = await prisma.asset.findUnique({ where: { id: request_.assetId }, select: { assetTag: true } });
-      void dispatchNotification({
-        recipientIds: [technician.id],
-        type: "MAINTENANCE_TECHNICIAN_ASSIGNED",
-        title: `You've been assigned to repair ${asset?.assetTag ?? "an asset"}`,
-        relatedEntityType: "maintenance",
-        relatedEntityId: request_.id,
-      });
-    })();
     logger.info("maintenance.assign", { requestId, id: request_.id });
 
     return Api.ok({ id: request_.id, status: "TECHNICIAN_ASSIGNED", technicianId: technician.id });

@@ -3,32 +3,47 @@ import type { NotificationType, Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { publishToUser } from "@/lib/redis-pubsub";
+import type { NotificationCategoryValue } from "@/lib/notification-display";
 
-/** The doc's `filter` param (`docs/API_DESIGN.md` §Notifications) has no
- * dedicated tab for ASSET_ASSIGNED — it only shows up under "all". */
-export const NOTIFICATION_FILTER_TYPES: Record<"alerts" | "approvals" | "bookings", NotificationType[]> = {
-  alerts: ["OVERDUE_RETURN", "AUDIT_DISCREPANCY"],
-  approvals: [
-    "TRANSFER_APPROVED",
-    "TRANSFER_REJECTED",
-    "MAINTENANCE_APPROVED",
-    "MAINTENANCE_REJECTED",
-    "MAINTENANCE_TECHNICIAN_ASSIGNED",
-    "MAINTENANCE_RESOLVED",
-  ],
-  bookings: ["BOOKING_CONFIRMED", "BOOKING_CANCELLED", "BOOKING_REMINDER"],
+/** Computed at read time, never persisted — the `Notification` table has no
+ * `category` column, so this stays a pure derived lookup instead of a write
+ * path that could drift out of sync with the DB. Covers every notification
+ * type named in the product spec, including ones no module can trigger yet
+ * (Allocation/Booking/Maintenance aren't built), so those modules can plug
+ * in later without a migration. */
+export const NOTIFICATION_TYPE_META: Record<NotificationType, { category: NotificationCategoryValue }> = {
+  ASSET_ASSIGNED: { category: "ASSIGNMENT" },
+  MAINTENANCE_APPROVED: { category: "APPROVAL" },
+  MAINTENANCE_REJECTED: { category: "APPROVAL" },
+  BOOKING_CONFIRMED: { category: "BOOKING" },
+  BOOKING_CANCELLED: { category: "BOOKING" },
+  BOOKING_REMINDER: { category: "BOOKING" },
+  TRANSFER_APPROVED: { category: "APPROVAL" },
+  TRANSFER_REJECTED: { category: "APPROVAL" },
+  OVERDUE_RETURN: { category: "ALERT" },
+  AUDIT_DISCREPANCY: { category: "ALERT" },
 };
 
-export type NotificationFilter = keyof typeof NOTIFICATION_FILTER_TYPES;
+const CATEGORY_TO_TYPES: Record<NotificationCategoryValue, NotificationType[]> = (() => {
+  const map = { ALERT: [], APPROVAL: [], BOOKING: [], ASSIGNMENT: [], INFO: [] } as Record<
+    NotificationCategoryValue,
+    NotificationType[]
+  >;
+  for (const [type, meta] of Object.entries(NOTIFICATION_TYPE_META) as [NotificationType, { category: NotificationCategoryValue }][]) {
+    map[meta.category].push(type);
+  }
+  return map;
+})();
 
 export type NotificationView = {
   id: string;
   type: NotificationType;
+  category: NotificationCategoryValue;
   title: string;
   body: string | null;
-  relatedEntityType: string | null;
-  relatedEntityId: string | null;
-  isRead: boolean;
+  entityType: string | null;
+  entityId: string | null;
+  readAt: string | null;
   createdAt: string;
 };
 
@@ -46,23 +61,37 @@ const notificationSelect = {
 function toView(
   row: Prisma.NotificationGetPayload<{ select: typeof notificationSelect }>,
 ): NotificationView {
-  return { ...row, createdAt: row.createdAt.toISOString() };
+  return {
+    id: row.id,
+    type: row.type,
+    category: NOTIFICATION_TYPE_META[row.type].category,
+    title: row.title,
+    body: row.body,
+    entityType: row.relatedEntityType,
+    entityId: row.relatedEntityId,
+    // The table only tracks isRead as a boolean (no read-timestamp column) —
+    // synthesize a stand-in timestamp so the API contract (readAt: string |
+    // null) stays stable for existing clients, which only ever check
+    // truthiness, never the actual value.
+    readAt: row.isRead ? row.createdAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+  };
 }
 
-type DispatchNotificationInput = {
+type CreateNotificationsInput = {
   recipientIds: string[];
   type: NotificationType;
   title: string;
   body?: string;
-  relatedEntityType?: string;
-  relatedEntityId?: string;
+  entityType?: string;
+  entityId?: string;
 };
 
-/** Fire-and-forget, same guarantee as `recordActivityEvent` — a
- * notification failure must never break the mutation that triggered it.
- * Persists first (durable, survives a down Redis or no one currently
- * connected), then best-effort pushes live to any open SSE stream. */
-export async function dispatchNotification(input: DispatchNotificationInput): Promise<void> {
+/** Best-effort, like `recordActivityEvent` — a notification failure must
+ * never break the mutation that triggered it. Persists first (durable,
+ * survives a down Redis or a client that wasn't connected), then pushes
+ * live to anyone currently subscribed. */
+export async function createNotifications(input: CreateNotificationsInput): Promise<void> {
   const uniqueRecipients = Array.from(new Set(input.recipientIds));
   if (uniqueRecipients.length === 0) return;
 
@@ -73,15 +102,15 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
         type: input.type,
         title: input.title,
         body: input.body ?? null,
-        relatedEntityType: input.relatedEntityType ?? null,
-        relatedEntityId: input.relatedEntityId ?? null,
+        relatedEntityType: input.entityType ?? null,
+        relatedEntityId: input.entityId ?? null,
       })),
       select: { userId: true, ...notificationSelect },
     });
 
     await Promise.all(created.map((row) => publishToUser(row.userId, toView(row))));
   } catch (error) {
-    logger.warn("notifications.dispatch_failed", {
+    logger.warn("notifications.create_failed", {
       type: input.type,
       recipientCount: uniqueRecipients.length,
       errorMessage: error instanceof Error ? error.message : "Unknown notification error",
@@ -89,47 +118,48 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
   }
 }
 
-/** Keyset pagination on `[userId, createdAt]`, matching
- * `docs/API_DESIGN.md`:21 — the notification feed is append-heavy and
- * expected past offset-pagination's comfort zone. */
 export async function listNotifications({
   userId,
-  cursor,
-  filter,
+  category,
+  page,
   limit,
 }: {
   userId: string;
-  cursor?: Date;
-  filter?: NotificationFilter;
+  category?: NotificationCategoryValue;
+  page: number;
   limit: number;
-}): Promise<{ rows: NotificationView[]; nextCursor: string | null }> {
+}): Promise<{ rows: NotificationView[]; total: number }> {
   const where: Prisma.NotificationWhereInput = {
     userId,
-    ...(cursor ? { createdAt: { lt: cursor } } : {}),
-    ...(filter ? { type: { in: NOTIFICATION_FILTER_TYPES[filter] } } : {}),
+    ...(category ? { type: { in: CATEGORY_TO_TYPES[category] } } : {}),
   };
 
-  const rows = await prisma.notification.findMany({
-    where,
-    orderBy: [{ createdAt: "desc" }],
-    take: limit,
-    select: notificationSelect,
-  });
+  const [rows, total] = await Promise.all([
+    prisma.notification.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }],
+      skip: (page - 1) * limit,
+      take: limit,
+      select: notificationSelect,
+    }),
+    prisma.notification.count({ where }),
+  ]);
 
-  const nextCursor = rows.length === limit ? rows[rows.length - 1].createdAt.toISOString() : null;
-
-  return { rows: rows.map(toView), nextCursor };
+  return { rows: rows.map(toView), total };
 }
 
 /** Ownership-guarded and idempotent — re-marking an already-read
- * notification just no-ops-updates it, still returns true; only false
- * when the id doesn't belong to this user (or doesn't exist). */
+ * notification is a no-op, still returns true; only returns false when the
+ * id doesn't belong to this user (or doesn't exist). */
 export async function markNotificationRead(id: string, userId: string): Promise<boolean> {
-  const result = await prisma.notification.updateMany({
+  const existing = await prisma.notification.findFirst({ where: { id, userId }, select: { id: true } });
+  if (!existing) return false;
+
+  await prisma.notification.updateMany({
     where: { id, userId },
     data: { isRead: true },
   });
-  return result.count === 1;
+  return true;
 }
 
 export async function markAllNotificationsRead(userId: string): Promise<number> {
@@ -142,18 +172,4 @@ export async function markAllNotificationsRead(userId: string): Promise<number> 
 
 export async function getUnreadCount(userId: string): Promise<number> {
   return prisma.notification.count({ where: { userId, isRead: false } });
-}
-
-/** Used by the overdue-return cron sweep to dedup instead of adding
- * another "last notified" timestamp column — see lib/cron/overdue-return-sweep.ts. */
-export async function hasUnreadNotificationForEntity(
-  userId: string,
-  type: NotificationType,
-  relatedEntityId: string,
-): Promise<boolean> {
-  const existing = await prisma.notification.findFirst({
-    where: { userId, type, relatedEntityId, isRead: false },
-    select: { id: true },
-  });
-  return existing !== null;
 }

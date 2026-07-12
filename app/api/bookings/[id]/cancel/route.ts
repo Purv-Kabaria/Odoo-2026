@@ -2,7 +2,6 @@ import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
-import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -34,7 +33,6 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
 
     const booking = await prisma.booking.findFirst({
       where: { id: idResult.data.id, asset: { orgId: user.orgId } },
-      include: { asset: { select: { assetTag: true } } },
     });
     if (!booking) return Api.notFound("Booking not found");
     if (booking.status === "CANCELLED") return Api.ok(booking);
@@ -55,13 +53,6 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
       entityType: "booking",
       entityId: booking.id,
       metadata: {},
-    });
-    void dispatchNotification({
-      recipientIds: [booking.bookedById],
-      type: "BOOKING_CANCELLED",
-      title: `Booking cancelled: ${booking.asset.assetTag}`,
-      relatedEntityType: "booking",
-      relatedEntityId: booking.id,
     });
     logger.info("bookings.cancel", { requestId, id: booking.id });
 
