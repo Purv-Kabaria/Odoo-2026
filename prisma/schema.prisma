@@ -115,6 +115,11 @@ enum NotificationType {
   TRANSFER_REJECTED
   MAINTENANCE_APPROVED
   MAINTENANCE_REJECTED
+  // No dedicated notify moment in the original API design (which only
+  // documents approve/reject) — added for the technician-assignment and
+  // resolution steps of the maintenance workflow.
+  MAINTENANCE_TECHNICIAN_ASSIGNED
+  MAINTENANCE_RESOLVED
   BOOKING_CONFIRMED
   BOOKING_CANCELLED
   BOOKING_REMINDER
@@ -141,6 +146,7 @@ model Organization {
   departments  Department[]
   categories   AssetCategory[]
   assets       Asset[]
+  assetKits    AssetKit[]
   auditCycles  AuditCycle[]
   activityLogs ActivityLog[]
 }
@@ -181,6 +187,9 @@ model User {
   resetTokens         PasswordResetToken[]
   allocationsHeld     Allocation[]         @relation("AllocationHolder")
   allocationsMade     Allocation[]         @relation("AllocationActor")
+  kitsCreated         AssetKit[]           @relation("KitCreator")
+  kitAllocationsHeld  KitAllocation[]      @relation("KitAllocationHolder")
+  kitAllocationsMade  KitAllocation[]      @relation("KitAllocationActor")
   transfersRequested  TransferRequest[]    @relation("TransferRequester")
   transfersFrom       TransferRequest[]    @relation("TransferFrom")
   transfersTo         TransferRequest[]    @relation("TransferTo")
@@ -220,10 +229,11 @@ model Department {
   parent   Department?  @relation("DeptHierarchy", fields: [parentDepartmentId], references: [id], onDelete: SetNull)
   children Department[] @relation("DeptHierarchy")
 
-  members           User[]       @relation("DeptMembers")
-  allocationsToDept Allocation[] @relation("AllocationDept")
-  bookingsOnBehalf  Booking[]    @relation("BookingDept")
-  auditCyclesScoped AuditCycle[]
+  members              User[]          @relation("DeptMembers")
+  allocationsToDept    Allocation[]    @relation("AllocationDept")
+  kitAllocationsToDept KitAllocation[] @relation("KitAllocationDept")
+  bookingsOnBehalf     Booking[]       @relation("BookingDept")
+  auditCyclesScoped    AuditCycle[]
 
   @@unique([orgId, name])
   @@index([orgId])
@@ -279,6 +289,7 @@ model Asset {
   category AssetCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   allocations         Allocation[]
+  kitItems            AssetKitItem[]
   transferRequests    TransferRequest[]
   bookings            Booking[]
   maintenanceRequests MaintenanceRequest[]
@@ -317,13 +328,20 @@ model Allocation {
   returnCondition    AssetCondition?
   checkInNotes       String?
   status             AllocationStatus @default(ACTIVE)
+  // Set when this allocation row was created as one line item of a bulk Kit
+  // allocation (see KitAllocation below), so the per-asset history record
+  // still exists and is independently returnable, but the UI can group it
+  // back under the batch it came from. Null for ordinary single-asset
+  // allocations.
+  kitAllocationId    String?          @db.Uuid
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
-  asset        Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  toEmployee   User?       @relation("AllocationHolder", fields: [toEmployeeId], references: [id], onDelete: SetNull)
-  toDepartment Department? @relation("AllocationDept", fields: [toDepartmentId], references: [id], onDelete: SetNull)
-  allocatedBy  User        @relation("AllocationActor", fields: [allocatedById], references: [id])
+  asset         Asset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  toEmployee    User?          @relation("AllocationHolder", fields: [toEmployeeId], references: [id], onDelete: SetNull)
+  toDepartment  Department?    @relation("AllocationDept", fields: [toDepartmentId], references: [id], onDelete: SetNull)
+  allocatedBy   User           @relation("AllocationActor", fields: [allocatedById], references: [id])
+  kitAllocation KitAllocation? @relation(fields: [kitAllocationId], references: [id], onDelete: SetNull)
   // Partial-unique "one active allocation per asset" and the overdue-returns
   // partial index (returnedAt IS NULL AND expectedReturnDate < now) are added
   // in the manual migration.
@@ -332,8 +350,91 @@ model Allocation {
   @@index([toEmployeeId])
   @@index([toDepartmentId])
   @@index([allocatedById])
+  @@index([kitAllocationId])
   // "assets held by X" and per-asset history sort by allocatedAt.
   @@index([assetId, allocatedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Asset kits — a named, reusable bundle of assets (e.g. "New Hire Kit")
+// allocated to one employee/department as a single unit.
+//
+// The bundle membership is modelled as a relational join table
+// (AssetKitItem) rather than a Json array of asset ids on AssetKit: a join
+// table gets a real FK to Asset (no dangling ids if an asset is deleted),
+// a unique(kitId, assetId) constraint (no duplicate line items), and an
+// index on assetId ("which kits is this asset part of") that a Json column
+// can't offer — all for the same storage cost at this cardinality (a kit
+// rarely holds more than a few dozen assets).
+// ---------------------------------------------------------------------------
+
+model AssetKit {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  orgId       String   @db.Uuid
+  name        String
+  description String?
+  createdById String   @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org         Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy   User            @relation("KitCreator", fields: [createdById], references: [id])
+  items       AssetKitItem[]
+  allocations KitAllocation[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+  @@index([createdById])
+}
+
+model AssetKitItem {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  kitId     String   @db.Uuid
+  assetId   String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  kit   AssetKit @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  asset Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  // Doubles as the kitId lookup index (leftmost column) and prevents adding
+  // the same asset to a kit twice.
+  @@unique([kitId, assetId])
+  // "which kits contain this asset" — surfaced on the asset detail page.
+  @@index([assetId])
+}
+
+// One bulk-allocation event for a kit: "this kit went to this employee/
+// department, done by this actor, at this time." The per-asset Allocation
+// rows created alongside it (Allocation.kitAllocationId) remain the
+// authoritative, independently-returnable history for each asset — this
+// row exists only to group them and to record the batch-level decision,
+// the same way Allocation itself already records a single-asset decision.
+model KitAllocation {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  kitId              String    @db.Uuid
+  // Same "exactly one of employee or department" target rule as Allocation,
+  // enforced by a matching check constraint in the manual migration.
+  toEmployeeId       String?   @db.Uuid
+  toDepartmentId     String?   @db.Uuid
+  allocatedById      String    @db.Uuid
+  allocatedAt        DateTime  @default(now())
+  expectedReturnDate DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Restrict, not Cascade: a kit that has ever been bulk-allocated is part
+  // of the audit trail and must not be silently deletable out from under
+  // its history (mirrors Asset.category onDelete: Restrict).
+  kit          AssetKit     @relation(fields: [kitId], references: [id], onDelete: Restrict)
+  toEmployee   User?        @relation("KitAllocationHolder", fields: [toEmployeeId], references: [id], onDelete: SetNull)
+  toDepartment Department?  @relation("KitAllocationDept", fields: [toDepartmentId], references: [id], onDelete: SetNull)
+  allocatedBy  User         @relation("KitAllocationActor", fields: [allocatedById], references: [id])
+  allocations  Allocation[]
+
+  @@index([kitId])
+  @@index([toEmployeeId])
+  @@index([toDepartmentId])
+  @@index([allocatedById])
 }
 
 model TransferRequest {
@@ -376,6 +477,11 @@ model Booking {
   endTime          DateTime
   status           BookingStatus @default(UPCOMING)
   reminderSentAt   DateTime?
+  // Only Booking gets a check-in concept — a scheduled session someone
+  // should show up for. Allocation has no analogous "arrival" step
+  // anywhere in the spec; an allocation is considered delivered the
+  // moment it's created.
+  checkedIn        Boolean       @default(false)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 

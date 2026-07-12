@@ -3,6 +3,7 @@ import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { getIdempotentResponse, idempotencyKeyFor, setIdempotentResponse } from "@/lib/idempotency";
 import { logger } from "@/lib/logger";
+import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -99,6 +100,23 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       entityId: cycle.id,
       metadata: { missing: missingItems.length, damaged: damagedItems.length, verified: verifiedCount },
     });
+    const discrepancyCount = missingItems.length + damagedItems.length;
+    if (discrepancyCount > 0) {
+      void (async () => {
+        const managers = await prisma.user.findMany({
+          where: { orgId: user.orgId, role: { in: ["ADMIN", "ASSET_MANAGER"] }, status: "ACTIVE" },
+          select: { id: true },
+        });
+        void dispatchNotification({
+          recipientIds: managers.map((m) => m.id),
+          type: "AUDIT_DISCREPANCY",
+          title: `Audit cycle "${cycle.name}" closed with ${discrepancyCount} ${discrepancyCount === 1 ? "discrepancy" : "discrepancies"}`,
+          body: `${missingItems.length} missing, ${damagedItems.length} damaged`,
+          relatedEntityType: "audit_cycle",
+          relatedEntityId: cycle.id,
+        });
+      })();
+    }
     void setIdempotentResponse(idempotencyKey, result);
     logger.info("audit_cycles.close", {
       requestId,
