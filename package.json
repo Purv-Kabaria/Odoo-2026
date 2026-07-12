@@ -25,7 +25,8 @@
     "search:index": "node scripts/index-users-search.js",
     "template:refresh": "pnpm template:seed && pnpm search:index",
     "db:wipe": "node scripts/wipe-db.js",
-    "db:wipe:table": "node scripts/wipe-table.js"
+    "db:wipe:table": "node scripts/wipe-table.js",
+    "smoke:auth": "node scripts/smoke-auth.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1080.0",
