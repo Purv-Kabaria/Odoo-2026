@@ -3,7 +3,7 @@ import {
   searchableColumns,
   sortableColumns,
 } from '@/lib/entities/types';
-import type { SearchableEntity } from '@/lib/entities/types';
+import type { EntityConfig } from '@/lib/entities/types';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { resilientFetch } from '@/lib/resilience';
@@ -45,7 +45,7 @@ function getHeaders() {
  * `env` object without losing genericity. Purely cosmetic (index naming),
  * never a required/security-sensitive value.
  */
-function indexNameFor(config: SearchableEntity): string {
+function indexNameFor(config: EntityConfig): string {
   if (!config.search) return config.key;
   return process.env[config.search.indexEnv] || config.key;
 }
@@ -95,7 +95,7 @@ async function meiliFetch<T>(
 }
 
 export async function configureSearchIndex(
-  config: SearchableEntity,
+  config: EntityConfig,
 ): Promise<void> {
   if (!config.search) return;
 
@@ -130,7 +130,7 @@ function toSearchableDocument(
 }
 
 export async function upsertInSearch(
-  config: SearchableEntity,
+  config: EntityConfig,
   rows: Record<string, unknown>[],
 ): Promise<void> {
   if (!config.search || rows.length === 0) return;
@@ -152,7 +152,7 @@ export async function upsertInSearch(
 }
 
 export async function deleteFromSearch(
-  config: SearchableEntity,
+  config: EntityConfig,
   ids?: string[],
 ): Promise<void> {
   if (!config.search) return;
@@ -179,7 +179,7 @@ export async function deleteFromSearch(
 }
 
 export async function searchIds(
-  config: SearchableEntity,
+  config: EntityConfig,
   query: string,
   limit: number,
 ): Promise<string[] | null> {

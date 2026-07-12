@@ -126,7 +126,7 @@ function FilterModalContent({
   }
 
   return (
-    <DialogContent className="w-[95vw] sm:max-w-[800px] p-0 sm:w-full overflow-visible">
+    <DialogContent className="w-[95vw] sm:max-w-[800px] rounded-none p-0 sm:w-full overflow-visible">
       <div className="p-6">
         <DialogHeader className="mb-6">
           <DialogTitle>Advanced Filtering</DialogTitle>
@@ -159,10 +159,10 @@ function FilterModalContent({
                   value={filter.field}
                   onValueChange={(val) => handleUpdateFilter(filter.id, "field", val)}
                 >
-                  <SelectTrigger className="w-full sm:w-[160px] bg-background shadow-sm h-9 cursor-pointer">
+                  <SelectTrigger className="w-full sm:w-[160px] rounded-none bg-background shadow-sm h-9 cursor-pointer">
                     <SelectValue placeholder="Column" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-none">
                     {columns.map((c) => (
                       <SelectItem key={c.key} value={c.key} className="cursor-pointer">
                         {c.label}
@@ -175,10 +175,10 @@ function FilterModalContent({
                   value={filter.operator}
                   onValueChange={(val) => handleUpdateFilter(filter.id, "operator", val)}
                 >
-                  <SelectTrigger className="w-full sm:w-[140px] bg-background shadow-sm h-9 cursor-pointer">
+                  <SelectTrigger className="w-full sm:w-[140px] rounded-none bg-background shadow-sm h-9 cursor-pointer">
                     <SelectValue placeholder="Operator" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="rounded-none">
                     <SelectItem value="equals" className="cursor-pointer">
                       Equals
                     </SelectItem>
@@ -199,10 +199,10 @@ function FilterModalContent({
                       value={filter.value}
                       onValueChange={(val) => handleUpdateFilter(filter.id, "value", val)}
                     >
-                      <SelectTrigger className="w-full bg-background shadow-sm h-9 cursor-pointer">
+                      <SelectTrigger className="w-full rounded-none bg-background shadow-sm h-9 cursor-pointer">
                         <SelectValue placeholder="Select value..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="rounded-none">
                         {columnConfig.options?.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value} className="cursor-pointer">
                             {opt.label}
@@ -215,14 +215,14 @@ function FilterModalContent({
                       value={filter.value}
                       onChange={(e) => handleUpdateFilter(filter.id, "value", e.target.value)}
                       placeholder="Type value..."
-                      className="shadow-sm h-9"
+                      className="rounded-none shadow-sm h-9"
                     />
                   )}
 
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
+                    className="rounded-none h-9 w-9 p-0 text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
                     onClick={() => handleRemoveFilter(filter.id)}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -235,7 +235,7 @@ function FilterModalContent({
 
         <Button
           variant="outline"
-          className="w-full mt-4 border-dashed border-2 cursor-pointer h-10"
+          className="w-full mt-4 rounded-none border-dashed border-2 cursor-pointer h-10"
           onClick={handleAddFilter}
           disabled={filters.length >= MAX_FILTER_RULES}
         >
@@ -248,7 +248,7 @@ function FilterModalContent({
           type="button"
           variant="ghost"
           onClick={handleClear}
-          className="cursor-pointer text-muted-foreground hover:text-foreground px-2 sm:px-4"
+          className="rounded-none cursor-pointer text-muted-foreground hover:text-foreground px-2 sm:px-4"
         >
           <FilterX className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Clear All</span>
         </Button>
@@ -257,14 +257,14 @@ function FilterModalContent({
             type="button"
             variant="outline"
             onClick={onClose}
-            className="cursor-pointer flex-1 sm:flex-none"
+            className="rounded-none cursor-pointer flex-1 sm:flex-none"
           >
             Cancel
           </Button>
           <Button
             type="button"
             onClick={handleApply}
-            className="cursor-pointer flex-1 sm:flex-none ml-2"
+            className="rounded-none cursor-pointer flex-1 sm:flex-none ml-2"
           >
             Apply Filters
           </Button>

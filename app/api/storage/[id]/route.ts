@@ -9,7 +9,7 @@ import { deleteObject, getObject } from "@/lib/object-storage";
 import { prisma } from "@/lib/prisma";
 
 const ParamsSchema = z.object({
-  id: z.string().cuid("Invalid object identifier"),
+  id: z.uuid("Invalid object identifier"),
 });
 
 function canAccess(role: string, userId: string, uploadedById: string): boolean {

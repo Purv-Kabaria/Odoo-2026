@@ -28,11 +28,9 @@ export const config = {
     "/activity/:path*",
     "/admin/:path*",
     "/moderator/:path*",
+    "/storage/:path*",
     "/users/:path*",
+    "/products/:path*",
     "/organizations/:path*",
-    "/assets/:path*",
-    "/allocations/:path*",
-    "/bookings/:path*",
-    "/maintenance/:path*",
   ],
 };

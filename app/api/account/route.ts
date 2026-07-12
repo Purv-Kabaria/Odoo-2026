@@ -32,12 +32,16 @@ export async function PATCH(req: Request) {
       where: { id: user.id },
       data: {
         name: validation.data.name,
+        location: validation.data.location ?? null,
+        gender: validation.data.gender ?? null,
       },
       select: {
         id: true,
         name: true,
         email: true,
         role: true,
+        location: true,
+        gender: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -46,12 +50,19 @@ export async function PATCH(req: Request) {
     void upsertInSearch(usersEntityConfig, [updated]);
     void invalidateEntityListCache(usersEntityConfig);
     void recordActivityEvent({
-      orgId: user.orgId,
-      action: 'user.profile_updated',
+      action: 'PROFILE_UPDATED',
       actorId: user.id,
       entityType: 'user',
       entityId: user.id,
-      metadata: { nameChanged: updated.name !== user.name, requestId },
+      summary: 'Profile updated',
+      requestId,
+      metadata: {
+        changedFields: ['name', 'location', 'gender'].filter((field) => {
+          if (field === 'name') return updated.name !== user.name;
+          if (field === 'location') return updated.location !== user.location;
+          return updated.gender !== user.gender;
+        }),
+      },
     });
 
     logger.info('account.update', { requestId, userId: user.id });
@@ -60,6 +71,8 @@ export async function PATCH(req: Request) {
       name: updated.name,
       email: updated.email,
       role: updated.role,
+      location: updated.location,
+      gender: updated.gender,
     });
   } catch (error) {
     logger.error('account.update.failed', error, { requestId });
