@@ -1,16 +1,15 @@
-import type { UserRole } from '@prisma/client';
+import type { Role } from '@prisma/client';
 
 import { Api } from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
 import { ReportFiltersSchema } from '@/types/reports-types';
 import type { ReportFilters } from '@/types/reports-types';
 
-/** Reports is manager-facing; no Department Head role exists yet, so
- * access is org-wide for the two roles that already see every entity. */
-const REPORT_ROLES: UserRole[] = ['ADMIN', 'MODERATOR'];
+/** Reports is manager-facing; the two roles that already see every entity. */
+const REPORT_ROLES: Role[] = ['ADMIN', 'ASSET_MANAGER'];
 
 type AuthorizedRequest = {
-  user: { id: string; role: UserRole };
+  user: { id: string; role: Role };
   filters: ReportFilters;
 };
 
