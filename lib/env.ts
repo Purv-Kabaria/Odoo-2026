@@ -46,6 +46,12 @@ const EnvSchema = z.object({
 
   LOKI_PUSH_URL: OptionalUrlSchema,
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+
+  // Shared secret for the /api/cron/* trigger endpoints. Vercel Cron Jobs
+  // automatically send this as `Authorization: Bearer <value>` when the env
+  // var is present; point an external scheduler (Upstash QStash, etc.) at
+  // the same header if the deployment can't use native Vercel Cron.
+  CRON_SECRET: z.string().min(16).optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
