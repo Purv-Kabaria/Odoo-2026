@@ -1,3 +1,9 @@
+// Primary keys use UUIDv7 (`@default(uuid(7))`, generated client-side by
+// Prisma) stored as native `@db.Uuid` rather than cuid()/text. UUIDv7 embeds
+// a millisecond timestamp in its high bits, so index/page locality on
+// insert-order scans stays close to a sequential int while remaining
+// globally unique and unguessable — a better fit than UUIDv4 for the
+// high-write allocation/booking/audit tables this project is heading toward.
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,7 +14,7 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid(7)) @db.Uuid
   email     String   @unique
   name      String
   role      UserRole @default(USER)
@@ -31,12 +37,12 @@ model User {
 }
 
 model ObjectAsset {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid(7)) @db.Uuid
   key         String   @unique
   filename    String
   contentType String
   sizeBytes   Int
-  uploadedById String
+  uploadedById String  @db.Uuid
   createdAt   DateTime @default(now())
   uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
 
@@ -47,11 +53,11 @@ model ObjectAsset {
 }
 
 model ActivityEvent {
-  id         String         @id @default(cuid())
+  id         String         @id @default(uuid(7)) @db.Uuid
   action     ActivityAction
   entityType String
-  entityId   String?
-  actorId    String?
+  entityId   String?        @db.Uuid
+  actorId    String?        @db.Uuid
   summary    String
   metadata   Json?
   requestId  String?
@@ -65,8 +71,8 @@ model ActivityEvent {
 }
 
 model PasswordCredential {
-  id           String   @id @default(cuid())
-  userId       String   @unique
+  id           String   @id @default(uuid(7)) @db.Uuid
+  userId       String   @unique @db.Uuid
   passwordHash String
   salt         String
   iterations   Int
@@ -76,8 +82,8 @@ model PasswordCredential {
 }
 
 model AuthSession {
-  id        String   @id @default(cuid())
-  userId    String
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @db.Uuid
   tokenHash String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
@@ -88,7 +94,7 @@ model AuthSession {
 }
 
 model PasswordResetToken {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid(7)) @db.Uuid
   email     String
   tokenHash String    @unique
   expiresAt DateTime
@@ -118,7 +124,7 @@ enum ActivityAction {
 }
 
 model Product {
-  id          String        @id @default(cuid())
+  id          String        @id @default(uuid(7)) @db.Uuid
   name        String
   sku         String        @unique
   category    String
@@ -138,7 +144,7 @@ model Product {
 }
 
 model Organization {
-  id        String           @id @default(cuid())
+  id        String           @id @default(uuid(7)) @db.Uuid
   name      String
   slug      String           @unique
   industry  String
