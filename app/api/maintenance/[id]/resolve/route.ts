@@ -2,7 +2,6 @@ import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
-import { evaluateRetirementRecommendation } from "@/lib/maintenance-retirement";
 import { prisma } from "@/lib/prisma";
 import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { MaintenanceResolveSchema } from "@/types/maintenance-types";
@@ -59,11 +58,6 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       entityId: request_.id,
       metadata: {},
     });
-    // Best-effort, non-blocking — never delays this response, never throws
-    // (evaluateRetirementRecommendation catches its own errors). A down or
-    // unconfigured LLM just means the card shows no AI flag; managers can
-    // also trigger POST .../recommend-retirement manually to retry.
-    void evaluateRetirementRecommendation(request_.id);
     logger.info("maintenance.resolve", { requestId, id: request_.id });
 
     return Api.ok(updated);
