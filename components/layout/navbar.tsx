@@ -68,7 +68,7 @@ export function Navbar({ user }: NavbarProps) {
               </span>
             </Link>
             {user ? (
-              <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
+              <nav className="hidden 2xl:flex items-center space-x-6 text-sm font-medium">
                 {roleLinks.map((link) => (
                   <Link key={link.href} href={link.href} className="flex items-center gap-2 transition-colors hover:text-primary text-foreground/70 cursor-pointer">
                     <link.icon className="h-4 w-4" /> {link.title}
@@ -79,7 +79,7 @@ export function Navbar({ user }: NavbarProps) {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-2">
+            <div className="hidden 2xl:flex items-center gap-2">
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -134,7 +134,7 @@ export function Navbar({ user }: NavbarProps) {
             </Button>
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden cursor-pointer">
+                <Button variant="ghost" size="icon" className="2xl:hidden cursor-pointer">
                   <Menu className="h-5 w-5" />
                   <span className="sr-only">Toggle Menu</span>
                 </Button>

@@ -154,10 +154,10 @@ export function AuditWorkspace({ canManage, currentUserId }: { canManage: boolea
                     className={`w-full cursor-pointer border p-2 text-left text-sm transition-colors ${selectedId === c.id ? "border-primary bg-primary/5" : "border-border hover:border-foreground/30"}`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{c.name}</span>
-                      <Badge variant={statusVariant(c.status)}>{c.status.replace("_", " ")}</Badge>
+                      <span className="min-w-0 truncate font-medium">{c.name}</span>
+                      <Badge variant={statusVariant(c.status)} className="shrink-0">{c.status.replace("_", " ")}</Badge>
                     </div>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground">
                       {c.scopeDept?.name ?? c.scopeLocation ?? "Org-wide"} — {c._count.items} assets
                     </p>
                   </button>
@@ -175,14 +175,14 @@ export function AuditWorkspace({ canManage, currentUserId }: { canManage: boolea
           ) : (
             <div className="space-y-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold">{detail.name}</h2>
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-semibold">{detail.name}</h2>
                   <p className="text-xs text-muted-foreground">
                     {formatTableDate(detail.startDate)} – {formatTableDate(detail.endDate)} — Auditors:{" "}
                     {detail.auditors.map((a) => a.auditor.name).join(", ")}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <Badge variant={statusVariant(detail.status)}>{detail.status.replace("_", " ")}</Badge>
                   {canManage && detail.status !== "CLOSED" && (
                     <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => void closeCycle()}>
