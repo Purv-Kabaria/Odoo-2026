@@ -23,10 +23,10 @@ const fontMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Odoo Boilerplate",
-    template: "%s | Odoo Boilerplate",
+    default: "AssetFlow",
+    template: "%s | AssetFlow",
   },
-  description: "A fast, secure Next.js 16 boilerplate with users, products, and organization routes.",
+  description: "Enterprise asset & resource management — track, allocate, and maintain every asset your organization owns.",
 };
 
 type Theme = "light" | "dark";

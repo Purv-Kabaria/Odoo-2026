@@ -11,11 +11,11 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-4 xl:grid-cols-5">
           <div className="xl:col-span-2 flex flex-col gap-4">
             <Link href="/" className="flex items-center space-x-2 cursor-pointer">
-              <Image src="/logo.svg" alt="Odoo" width={24} height={24} className="w-6 h-6 group-hover:opacity-80 transition-opacity" />
-              <span className="font-bold text-xl">Odoo</span>
+              <Image src="/logo.png" alt="AssetFlow" width={28} height={28} className="w-7 h-7 group-hover:opacity-80 transition-opacity" />
+              <span className="font-heading font-bold text-xl">AssetFlow</span>
             </Link>
             <p className="text-muted-foreground text-sm max-w-xs leading-relaxed">
-              The ultimate boilerplate for shipping high-performance Next.js applications faster than ever before.
+              Track, allocate, and maintain every asset and shared resource your organization owns, in one place.
             </p>
           </div>
 
@@ -33,7 +33,7 @@ export function Footer() {
 
         <div className="mt-16 border-t border-border/40 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            &copy; {COPYRIGHT_YEAR} Odoo Core Team. All rights reserved.
+            &copy; {COPYRIGHT_YEAR} AssetFlow. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             <span className="flex h-2 w-2 rounded-none bg-green-500 animate-pulse" />
