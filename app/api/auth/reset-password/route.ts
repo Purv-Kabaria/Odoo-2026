@@ -42,16 +42,7 @@ export async function POST(req: Request) {
       return Api.badRequest("This reset link is invalid or expired");
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: resetToken.email },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return Api.badRequest("This reset link is invalid or expired");
-    }
-
-    const credential = hashPassword(password);
+    const { passwordHash } = hashPassword(password);
     const consumedAt = new Date();
     const transactionResult = await prisma.$transaction(async (tx) => {
       const consumed = await tx.passwordResetToken.updateMany({
@@ -65,16 +56,12 @@ export async function POST(req: Request) {
 
       if (consumed.count !== 1) return { consumed: false };
 
-      await tx.passwordCredential.upsert({
-        where: { userId: user.id },
-        update: credential,
-        create: {
-          userId: user.id,
-          ...credential,
-        },
+      await tx.user.update({
+        where: { id: resetToken.userId },
+        data: { passwordHash },
       });
       await tx.authSession.deleteMany({
-        where: { userId: user.id },
+        where: { userId: resetToken.userId },
       });
 
       return { consumed: true };
@@ -84,7 +71,7 @@ export async function POST(req: Request) {
       return Api.badRequest("This reset link is invalid or expired");
     }
 
-    logger.info("auth.reset_password", { requestId, userId: user.id });
+    logger.info("auth.reset_password", { requestId, userId: resetToken.userId });
     return Api.ok({ message: "Password updated successfully" });
   } catch (error) {
     logger.error("auth.reset_password.failed", error, { requestId });

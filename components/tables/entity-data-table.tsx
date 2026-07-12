@@ -49,7 +49,7 @@ import {
 } from "@/lib/entities-client";
 import { canPerform } from "@/lib/entities/types";
 import type { EntityColumn, EntityConfig } from "@/lib/entities/types";
-import type { UserRole } from "@prisma/client";
+import type { Role } from "@prisma/client";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -78,7 +78,7 @@ function renderCellValue(column: EntityColumn, value: unknown): string {
 
 type EntityDataTableProps = {
   config: EntityConfig;
-  currentUserRole: UserRole;
+  currentUserRole: Role;
 };
 
 export function EntityDataTable({ config, currentUserRole }: EntityDataTableProps) {
