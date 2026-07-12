@@ -46,14 +46,6 @@ const EnvSchema = z.object({
 
   LOKI_PUSH_URL: OptionalUrlSchema,
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
-
-  // SMTP (Nodemailer) — all optional; when SMTP_HOST is absent, emails are
-  // logged to the console instead of sent (preview mode for local dev).
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
-  SMTP_FROM: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

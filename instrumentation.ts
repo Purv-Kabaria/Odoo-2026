@@ -1,14 +1,3 @@
-/**
- * Next.js calls `register()` once per server process on startup (App
- * Router, on by default since Next 15 — no experimental flag needed).
- * This is where the CRON sweeps get bootstrapped: no separate worker
- * deployment, just code that runs alongside the app server.
- *
- * `globalThis.__cronRegistered` guards against Next's dev-mode hot-reload
- * re-invoking `register()` and scheduling every job twice — same
- * `globalThis` singleton pattern `lib/redis-cache.ts` already uses for its
- * client.
- */
 declare global {
   var __cronRegistered: boolean | undefined;
 }
