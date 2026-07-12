@@ -214,6 +214,7 @@ model Department {
   members           User[]       @relation("DeptMembers")
   allocationsToDept Allocation[] @relation("AllocationDept")
   bookingsOnBehalf  Booking[]    @relation("BookingDept")
+  auditCyclesScoped AuditCycle[]
 
   @@unique([orgId, name])
   @@index([orgId])
@@ -437,15 +438,17 @@ model AuditCycle {
   org               Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   createdBy         User               @relation("AuditCreator", fields: [createdById], references: [id])
   closedBy          User?              @relation("AuditCloser", fields: [closedById], references: [id], onDelete: SetNull)
+  scopeDept         Department?        @relation(fields: [scopeDeptId], references: [id], onDelete: SetNull)
   auditors          AuditAssignment[]
   items             AuditItem[]
   discrepancyReport DiscrepancyReport?
-  // endDate >= startDate and scope-exactly-one-of(dept,location) checks in
+  // endDate >= startDate and scope-at-most-one-of(dept,location) checks in
   // the manual migration.
 
   @@index([orgId])
   @@index([createdById])
   @@index([closedById])
+  @@index([scopeDeptId])
   @@index([orgId, status])
 }
 

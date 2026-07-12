@@ -3,6 +3,7 @@ import {
   Boxes,
   Building2,
   CalendarClock,
+  ClipboardCheck,
   Gauge,
   ShieldCheck,
   UserCircle,
@@ -55,6 +56,12 @@ export const navigationLinks: NavigationLink[] = [
     title: "Maintenance",
     href: "/maintenance",
     icon: Wrench,
+    roles: ALL_ROLES,
+  },
+  {
+    title: "Audit",
+    href: "/audit",
+    icon: ClipboardCheck,
     roles: ALL_ROLES,
   },
   {
