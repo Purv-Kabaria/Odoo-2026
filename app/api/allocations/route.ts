@@ -2,6 +2,7 @@ import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
+import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { AllocateAssetSchema, AllocationListQuerySchema } from "@/types/allocation-types";
@@ -55,7 +56,6 @@ export async function GET(req: Request) {
           asset: { select: { id: true, assetTag: true, name: true, status: true } },
           toEmployee: { select: { id: true, name: true } },
           toDepartment: { select: { id: true, name: true } },
-          kitAllocation: { select: { kit: { select: { id: true, name: true } } } },
         },
       }),
       prisma.allocation.count({ where }),
@@ -126,6 +126,22 @@ export async function POST(req: Request) {
       entityId: allocation.id,
       metadata: { assetTag: asset.assetTag, toEmployeeId, toDepartmentId },
     });
+    void (async () => {
+      const recipientId = toEmployeeId
+        ? toEmployeeId
+        : toDepartmentId
+          ? (await prisma.department.findUnique({ where: { id: toDepartmentId }, select: { headId: true } }))
+              ?.headId
+          : null;
+      if (!recipientId) return;
+      void dispatchNotification({
+        recipientIds: [recipientId],
+        type: "ASSET_ASSIGNED",
+        title: `${asset.assetTag} — ${asset.name} has been assigned to you`,
+        relatedEntityType: "allocation",
+        relatedEntityId: allocation.id,
+      });
+    })();
     logger.info("allocations.create", { requestId, id: allocation.id, assetId });
 
     return Api.created(allocation);
