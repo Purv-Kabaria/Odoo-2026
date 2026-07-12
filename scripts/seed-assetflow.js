@@ -269,6 +269,10 @@ async function seedAuditCycles(departments, assets, auditorPool) {
           type: status,
           note: item.note,
           resolvedAssetStatus: status === "MISSING" ? "LOST" : null,
+          // Backdated to when the cycle actually closed (not "now") so the
+          // Reports maintenance-frequency trend has real month-over-month
+          // spread instead of every discrepancy landing in one bucket.
+          createdAt: cycle.closedAt,
         })),
       });
       totalDiscrepancies += flagged.length;

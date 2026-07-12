@@ -46,7 +46,7 @@ export default async function AdminPage() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {manageableEntities.map((config) => (
-          <Card key={config.key} size="sm">
+          <Card key={config.key} size="sm" className="rounded-none">
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -69,7 +69,7 @@ export default async function AdminPage() {
               ))}
             </CardContent>
             <div className="border-t border-border p-3">
-              <Button asChild size="sm" className="w-full cursor-pointer">
+              <Button asChild size="sm" className="w-full cursor-pointer rounded-none">
                 <Link href={`/${config.key}`}>
                   Open {config.label}
                   <ArrowRight className="size-4" />
@@ -79,7 +79,7 @@ export default async function AdminPage() {
           </Card>
         ))}
 
-        <Card size="sm">
+        <Card size="sm" className="rounded-none">
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -92,7 +92,7 @@ export default async function AdminPage() {
             </div>
           </CardHeader>
           <div className="border-t border-border p-3">
-            <Button asChild variant="outline" size="sm" className="w-full cursor-pointer">
+            <Button asChild variant="outline" size="sm" className="w-full cursor-pointer rounded-none">
               <Link href="/account">Manage account</Link>
             </Button>
           </div>

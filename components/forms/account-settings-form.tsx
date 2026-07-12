@@ -131,10 +131,10 @@ export function AccountSettingsForm({
           <div className="grid gap-2">
             <Label htmlFor="account-gender">Gender</Label>
             <Select value={gender} onValueChange={setGender}>
-              <SelectTrigger id="account-gender" className="cursor-pointer shadow-sm">
+              <SelectTrigger id="account-gender" className="cursor-pointer rounded-none shadow-sm">
                 <SelectValue placeholder="Select gender" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-none">
                 <SelectItem value="unset" className="cursor-pointer">
                   Not specified
                 </SelectItem>
@@ -153,7 +153,7 @@ export function AccountSettingsForm({
           <Button
             type="submit"
             disabled={isSavingProfile || name.trim().length < 2}
-            className="mt-1 w-full cursor-pointer sm:w-fit"
+            className="mt-1 w-full cursor-pointer rounded-none sm:w-fit"
           >
             {isSavingProfile ? "Saving..." : "Save profile"}
           </Button>
@@ -215,7 +215,7 @@ export function AccountSettingsForm({
               password.length < 8 ||
               password !== confirmPassword
             }
-            className="mt-1 w-full cursor-pointer sm:w-fit"
+            className="mt-1 w-full cursor-pointer rounded-none sm:w-fit"
           >
             {isChangingPassword ? "Updating..." : "Update password"}
           </Button>

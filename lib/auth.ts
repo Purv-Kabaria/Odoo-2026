@@ -1,47 +1,24 @@
-import { randomBytes } from "crypto";
+import { randomBytes } from 'crypto';
 
-import { cookies } from "next/headers";
-import type { NextResponse } from "next/server";
+import { cookies } from 'next/headers';
+import type { NextResponse } from 'next/server';
 
-import { env } from "@/lib/env";
-import { logger } from "@/lib/logger";
-import { hashToken } from "@/lib/password";
-import { prisma } from "@/lib/prisma";
-import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
-import type { Role } from "@prisma/client";
+import { env } from '@/lib/env';
+import { logger } from '@/lib/logger';
+import { hashToken } from '@/lib/password';
+import { prisma } from '@/lib/prisma';
+import { SESSION_COOKIE_NAME } from '@/lib/session-cookie';
+import type { UserRole } from '@prisma/client';
 
 const SESSION_DAYS = 30;
 
-export { hashPassword, hashToken, verifyPassword } from "@/lib/password";
+/** Roles permitted to create/update/delete records. Read access only requires a session. */
+const MUTATION_ROLES: UserRole[] = ['ADMIN', 'MODERATOR'];
 
-/**
- * The select set returned by getCurrentUser. This is the canonical
- * "session user" shape — never includes passwordHash, tokens, or
- * other secrets. Every route handler and layout that needs the signed-in
- * user goes through this function.
- */
-const CURRENT_USER_SELECT = {
-  id: true,
-  name: true,
-  email: true,
-  role: true,
-  status: true,
-  orgId: true,
-  departmentId: true,
-} as const;
-
-export type CurrentUser = {
-  id: string;
-  name: string;
-  email: string;
-  role: Role;
-  status: "PENDING_APPROVAL" | "ACTIVE" | "INACTIVE";
-  orgId: string;
-  departmentId: string | null;
-};
+export { hashPassword, hashToken, verifyPassword } from '@/lib/password';
 
 export async function createSession(userId: string, rememberMe: boolean) {
-  const token = randomBytes(32).toString("hex");
+  const token = randomBytes(32).toString('hex');
   const expiresAt = new Date(
     Date.now() + (rememberMe ? SESSION_DAYS : 1) * 24 * 60 * 60 * 1000,
   );
@@ -66,14 +43,14 @@ export function setSessionCookie(
     name: SESSION_COOKIE_NAME,
     value: token,
     httpOnly: true,
-    sameSite: "lax",
-    secure: env.NODE_ENV === "production",
-    path: "/",
+    sameSite: 'lax',
+    secure: env.NODE_ENV === 'production',
+    path: '/',
     expires: expiresAt,
   });
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+export async function getCurrentUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
@@ -89,16 +66,23 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
       where: { tokenHash: hashToken(token) },
       include: {
         user: {
-          select: CURRENT_USER_SELECT,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            location: true,
+            gender: true,
+          },
         },
       },
     });
   } catch (error) {
-    logger.error("auth.session_lookup_failed", error);
+    logger.error('auth.session_lookup_failed', error);
     return null;
   }
 
-  if (!session || session.expiresAt <= new Date() || session.user.status !== "ACTIVE") {
+  if (!session || session.expiresAt <= new Date()) {
     if (session) {
       void prisma.authSession.deleteMany({
         where: { tokenHash: hashToken(token) },
@@ -108,4 +92,9 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   }
 
   return session.user;
+}
+
+/** Whether a role is permitted to create, update, or delete records. */
+export function canMutate(role: UserRole): boolean {
+  return MUTATION_ROLES.includes(role);
 }
