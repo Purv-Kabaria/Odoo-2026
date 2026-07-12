@@ -42,7 +42,7 @@ import {
 import { readApiResponse } from "@/lib/api-client";
 import { fetchEntityRows } from "@/lib/entities-client";
 import { formatTableDate } from "@/lib/date-format";
-import type { Role } from "@prisma/client";
+import type { UserRole } from "@prisma/client";
 
 type ScopeType = "DEPARTMENT" | "LOCATION";
 type CycleStatus = "ACTIVE" | "CLOSED";
@@ -97,7 +97,7 @@ type CycleDetail = Omit<CycleListItem, "auditors"> & {
 
 type DepartmentOption = { id: string; name: string };
 
-type CurrentUser = { id: string; role: Role };
+type CurrentUser = { id: string; role: UserRole };
 
 function scopeSummary(cycle: Pick<CycleListItem, "scopeType" | "department" | "location">) {
   if (cycle.scopeType === "DEPARTMENT") return cycle.department?.name ?? "Unscoped department";
