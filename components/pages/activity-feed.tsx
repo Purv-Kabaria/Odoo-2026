@@ -32,19 +32,11 @@ type ActivityResponse = {
 
 const POLL_INTERVAL_MS = 15000;
 
-<<<<<<< HEAD
 /** `action` is a free-text "domain.verb" string (e.g. "asset.allocated") — title-case it for display. */
 function actionLabel(action: string): string {
   return action
     .split(/[._]/)
     .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
-=======
-function actionLabel(action: string): string {
-  return action
-    .toLowerCase()
-    .split("_")
-    .map((part: string) => part[0]?.toUpperCase() + part.slice(1))
->>>>>>> feat/auth
     .join(" ");
 }
 

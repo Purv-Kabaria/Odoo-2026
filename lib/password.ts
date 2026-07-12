@@ -5,11 +5,6 @@ import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from "crypto";
  * imports beyond Node's `crypto` so it can be unit-tested in isolation and
  * imported anywhere (scripts, tests, route handlers) without pulling in
  * Next.js request context or Prisma.
- *
- * Passwords are stored as a single composite string:
- *   pbkdf2:<iterations>:<salt_hex>:<hash_hex>
- * This keeps the User model simple (one `passwordHash` column) while
- * preserving all parameters needed for verification.
  */
 
 const PASSWORD_ITERATIONS = 210_000;
@@ -29,7 +24,7 @@ export function hashPassword(password: string, salt = randomBytes(16).toString("
     salt,
     PASSWORD_ITERATIONS,
     PASSWORD_KEY_LENGTH,
-    PASSWORD_DIGEST,
+    PASSWORD_DIGEST
   ).toString("hex");
 
   return {
@@ -48,8 +43,7 @@ export function verifyPassword(password: string, user: { passwordHash: string })
 
   const hash = pbkdf2Sync(password, salt, iterations, PASSWORD_KEY_LENGTH, PASSWORD_DIGEST);
 
-  const storedBuffer = Buffer.from(expectedHash, "hex");
-  return storedBuffer.length === hash.length && timingSafeEqual(storedBuffer, hash);
+  return storedHash.length === hash.length && timingSafeEqual(storedHash, hash);
 }
 
 export function hashToken(token: string) {
