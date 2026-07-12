@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Menu, ChevronRight, LogIn, UserPlus, LogOut, Sun, Moon, LayoutDashboard } from "lucide-react"
 import Image from "next/image"
-import { NotificationBell } from "@/components/layout/notification-bell"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet"
 import {
   DropdownMenu,
@@ -123,7 +122,6 @@ export function Navbar({ user }: NavbarProps) {
                 </>
               )}
             </div>
-            {user ? <NotificationBell /> : null}
             <Button
               variant="ghost"
               size="icon"
