@@ -7,7 +7,7 @@ export const tableToolbarPlaceholderClass =
 
 /** Shared sizing for table toolbar inputs and selects. */
 export const tableControlBaseClass = [
-  "h-9 min-h-9 w-full rounded-lg border border-input bg-background shadow-sm",
+  "h-9 min-h-9 w-full rounded-none border border-input bg-background shadow-sm",
   tableToolbarTextClass,
   tableToolbarPlaceholderClass,
   "!text-sm md:!text-sm",
@@ -19,7 +19,7 @@ export const tableControlColumnWidthClass =
 
 /** Dropdown panel matches trigger width (overrides default min-w-36). */
 export const selectContentMatchTriggerClass =
-  "min-w-0 w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)] rounded-lg text-sm"
+  "min-w-0 w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-trigger-width)] rounded-none text-sm"
 
 export const searchToolbarClass =
   "grid w-full min-w-0 grid-cols-2 gap-2 sm:max-w-md lg:max-w-xl"
@@ -41,7 +41,7 @@ export const pageSizeTriggerClass = [
 ].join(" ")
 
 export const tableToolbarButtonClass =
-  "h-9 cursor-pointer gap-1.5 rounded-lg px-3 text-sm !font-normal shadow-sm [&_svg]:size-4"
+  "h-9 cursor-pointer gap-1.5 rounded-none px-3 text-sm !font-normal shadow-sm [&_svg]:size-4"
 
 export const tableToolbarIconClass = "size-4 shrink-0"
 

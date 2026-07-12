@@ -1,13 +1,9 @@
-// AssetFlow — Enterprise Asset & Resource Management System
-// Schema-first design. The hard invariants (no double-allocation, no booking
-// overlap, allocate-to-one-target) are enforced at the DB level via raw SQL in
-// migrations/0001_manual_constraints — Prisma's schema syntax can't express
-// partial-unique / GiST-exclusion / check constraints, so they live there.
-//
-// Multi-tenant: every top-level entity is scoped to an Organization. Org + first
-// ADMIN are provisioned out-of-band (seed / invite); public signup only ever
-// creates an EMPLOYEE (see problem statement, Screen 1).
-
+// Primary keys use UUIDv7 (`@default(uuid(7))`, generated client-side by
+// Prisma) stored as native `@db.Uuid` rather than cuid()/text. UUIDv7 embeds
+// a millisecond timestamp in its high bits, so index/page locality on
+// insert-order scans stays close to a sequential int while remaining
+// globally unique and unguessable — a better fit than UUIDv4 for the
+// high-write allocation/booking/audit tables this project is heading toward.
 generator client {
   provider = "prisma-client-js"
 }
@@ -17,533 +13,165 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ---------------------------------------------------------------------------
-// Enums — valid states are schema facts, not string conventions.
-// ---------------------------------------------------------------------------
-
-enum Role {
-  ADMIN
-  ASSET_MANAGER
-  DEPARTMENT_HEAD
-  EMPLOYEE
-}
-
-enum ActiveStatus {
-  ACTIVE
-  INACTIVE
-}
-
-enum AssetStatus {
-  AVAILABLE
-  ALLOCATED
-  RESERVED
-  UNDER_MAINTENANCE
-  LOST
-  RETIRED
-  DISPOSED
-}
-
-enum AssetCondition {
-  NEW
-  GOOD
-  FAIR
-  POOR
-  DAMAGED
-}
-
-enum AllocationStatus {
-  ACTIVE
-  RETURNED
-}
-
-enum TransferStatus {
-  REQUESTED
-  APPROVED
-  REJECTED
-  COMPLETED
-  CANCELLED
-}
-
-enum BookingStatus {
-  UPCOMING
-  ONGOING
-  COMPLETED
-  CANCELLED
-}
-
-enum MaintenanceStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  TECHNICIAN_ASSIGNED
-  IN_PROGRESS
-  RESOLVED
-}
-
-enum MaintenancePriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-enum AuditCycleStatus {
-  PLANNED
-  IN_PROGRESS
-  CLOSED
-}
-
-enum AuditVerification {
-  PENDING
-  VERIFIED
-  MISSING
-  DAMAGED
-}
-
-enum NotificationType {
-  ASSET_ASSIGNED
-  TRANSFER_APPROVED
-  TRANSFER_REJECTED
-  MAINTENANCE_APPROVED
-  MAINTENANCE_REJECTED
-  BOOKING_CONFIRMED
-  BOOKING_CANCELLED
-  BOOKING_REMINDER
-  OVERDUE_RETURN
-  AUDIT_DISCREPANCY
-}
-
-// ---------------------------------------------------------------------------
-// Tenant root
-// ---------------------------------------------------------------------------
-
-model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  // Monotonic per-org counter for AF-#### tag generation. Incremented inside
-  // the asset-create transaction via `UPDATE ... RETURNING` so concurrent
-  // registrations can't collide. Never exposed to clients directly.
-  assetSeq  Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  users        User[]
-  departments  Department[]
-  categories   AssetCategory[]
-  assets       Asset[]
-  auditCycles  AuditCycle[]
-  activityLogs ActivityLog[]
-}
-
-// ---------------------------------------------------------------------------
-// Identity & directory
-// ---------------------------------------------------------------------------
-
 model User {
-  id           String       @id @default(cuid())
-  orgId        String
-  email        String       @unique
-  passwordHash String
-  name         String
-  role         Role         @default(EMPLOYEE)
-  status       ActiveStatus @default(ACTIVE)
-  departmentId String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  department Department?  @relation("DeptMembers", fields: [departmentId], references: [id], onDelete: SetNull)
-
-  headedDepartments    Department[]         @relation("DeptHead")
-  sessions             AuthSession[]
-  resetTokens          PasswordResetToken[]
-  allocationsHeld      Allocation[]         @relation("AllocationHolder")
-  allocationsMade      Allocation[]         @relation("AllocationActor")
-  transfersRequested   TransferRequest[]    @relation("TransferRequester")
-  transfersFrom        TransferRequest[]    @relation("TransferFrom")
-  transfersTo          TransferRequest[]    @relation("TransferTo")
-  transfersApproved    TransferRequest[]    @relation("TransferApprover")
-  bookings             Booking[]            @relation("BookingOwner")
-  maintenanceRaised    MaintenanceRequest[] @relation("MaintenanceRaiser")
-  maintenanceApproved  MaintenanceRequest[] @relation("MaintenanceApprover")
-  maintenanceAssigned  MaintenanceRequest[] @relation("MaintenanceTechnician")
-  auditCyclesCreated   AuditCycle[]         @relation("AuditCreator")
-  auditorAssignments   AuditAssignment[]
-  auditItemsRecorded   AuditItem[]          @relation("AuditItemAuditor")
-  notifications        Notification[]
-  activityLogs         ActivityLog[]        @relation("LogActor")
-
-  @@index([orgId])
-  @@index([departmentId])
-  // Directory list: filter by department/role/status within an org.
-  @@index([orgId, role])
-  @@index([orgId, status])
-}
-
-model Department {
-  id                 String       @id @default(cuid())
-  orgId              String
-  name               String
-  headId             String?
-  parentDepartmentId String?
-  status             ActiveStatus @default(ACTIVE)
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-
-  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  head     User?        @relation("DeptHead", fields: [headId], references: [id], onDelete: SetNull)
-  parent   Department?  @relation("DeptHierarchy", fields: [parentDepartmentId], references: [id], onDelete: SetNull)
-  children Department[] @relation("DeptHierarchy")
-
-  members             User[]       @relation("DeptMembers")
-  allocationsToDept   Allocation[] @relation("AllocationDept")
-  bookingsOnBehalf    Booking[]    @relation("BookingDept")
-
-  @@unique([orgId, name])
-  @@index([orgId])
-  @@index([headId])
-  @@index([parentDepartmentId])
-}
-
-model AssetCategory {
-  id        String   @id @default(cuid())
-  orgId     String
+  id        String   @id @default(uuid(7)) @db.Uuid
+  email     String   @unique
   name      String
-  // Category-specific field *definitions* (e.g. Electronics -> warrantyMonths).
-  // Shape: [{ key, label, type, required }]. Per-asset values live on
-  // Asset.customFields. JSON is deliberate: field sets are sparse and
-  // heterogeneous across categories — a normalized EAV table would be heavier
-  // for no query benefit, since these are never filtered on in a hot path.
-  fieldSchema Json?
+  role      UserRole @default(USER)
+  location  String?
+  gender    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  credential PasswordCredential?
+  sessions   AuthSession[]
+  objects    ObjectAsset[]
+  activityEvents ActivityEvent[]
 
-  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  assets Asset[]
-
-  @@unique([orgId, name])
-  @@index([orgId])
+  @@index([role])
+  @@index([gender])
+  @@index([createdAt])
+  @@index([name])
+  @@index([location])
+  @@index([role, createdAt])
+  @@index([gender, createdAt])
 }
 
-// ---------------------------------------------------------------------------
-// Assets
-// ---------------------------------------------------------------------------
+model ObjectAsset {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  key         String   @unique
+  filename    String
+  contentType String
+  sizeBytes   Int
+  uploadedById String  @db.Uuid
+  createdAt   DateTime @default(now())
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
 
-model Asset {
-  id              String         @id @default(cuid())
-  orgId           String
-  assetTag        String // AF-0001, generated per-org; unique within org (see @@unique)
-  name            String
-  categoryId      String
-  serialNumber    String?
-  qrCode          String? // opaque token encoded into the printed QR
-  acquisitionDate DateTime?
-  acquisitionCost Decimal?       @db.Decimal(14, 2) // ranking/reports only, NOT accounting
-  condition       AssetCondition @default(GOOD)
-  location        String?
-  photoUrl        String?
-  documents       Json? // [{ name, url }]
-  isBookable      Boolean        @default(false)
-  status          AssetStatus    @default(AVAILABLE)
-  customFields    Json? // values keyed to AssetCategory.fieldSchema
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  org      Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  category AssetCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-
-  allocations         Allocation[]
-  transferRequests    TransferRequest[]
-  bookings            Booking[]
-  maintenanceRequests MaintenanceRequest[]
-  auditItems          AuditItem[]
-
-  @@unique([orgId, assetTag])
-  @@unique([orgId, serialNumber])
-  @@unique([qrCode])
-  @@index([orgId])
-  @@index([categoryId])
-  // Directory + dashboard KPI counts filter by status within an org, default
-  // sort createdAt desc. Composite serves "status filter + sort"; single
-  // [orgId,status] serves the KPI count-by-status.
-  @@index([orgId, status])
-  @@index([orgId, status, createdAt])
-  @@index([orgId, location])
-  @@index([serialNumber]) // exact-match search path
-  // pg_trgm GIN index on `name` added in manual migration for fuzzy search.
+  @@index([uploadedById])
+  @@index([createdAt])
+  @@index([uploadedById, createdAt])
+  @@index([contentType])
 }
 
-// ---------------------------------------------------------------------------
-// Allocation & transfer
-// ---------------------------------------------------------------------------
-
-model Allocation {
-  id                 String           @id @default(cuid())
-  assetId            String
-  // Allocation target is EITHER an employee OR a department, never both/neither.
-  // Enforced by a check constraint in the manual migration.
-  toEmployeeId       String?
-  toDepartmentId     String?
-  allocatedById      String
-  allocatedAt        DateTime         @default(now())
-  expectedReturnDate DateTime?
-  returnedAt         DateTime?
-  returnCondition    AssetCondition?
-  checkInNotes       String?
-  status             AllocationStatus @default(ACTIVE)
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-
-  asset        Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  toEmployee   User?       @relation("AllocationHolder", fields: [toEmployeeId], references: [id], onDelete: SetNull)
-  toDepartment Department? @relation("AllocationDept", fields: [toDepartmentId], references: [id], onDelete: SetNull)
-  allocatedBy  User        @relation("AllocationActor", fields: [allocatedById], references: [id])
-
-  @@index([assetId])
-  @@index([toEmployeeId])
-  @@index([toDepartmentId])
-  @@index([allocatedById])
-  // "assets held by X" and per-asset history sort by allocatedAt.
-  @@index([assetId, allocatedAt])
-  // Partial-unique "one active allocation per asset" and the overdue-returns
-  // partial index (returnedAt IS NULL AND expectedReturnDate < now) are added
-  // in the manual migration.
-}
-
-model TransferRequest {
-  id            String         @id @default(cuid())
-  assetId       String
-  fromEmployeeId String?
-  toEmployeeId  String
-  requestedById String
-  approvedById  String?
-  reason        String
-  status        TransferStatus @default(REQUESTED)
-  decidedAt     DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-
-  asset       Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  fromEmployee User? @relation("TransferFrom", fields: [fromEmployeeId], references: [id], onDelete: SetNull)
-  toEmployee  User  @relation("TransferTo", fields: [toEmployeeId], references: [id])
-  requestedBy User  @relation("TransferRequester", fields: [requestedById], references: [id])
-  approvedBy  User? @relation("TransferApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-
-  @@index([assetId])
-  @@index([toEmployeeId])
-  @@index([requestedById])
-  // Approver queue: open transfers by status, newest first.
-  @@index([status, createdAt])
-}
-
-// ---------------------------------------------------------------------------
-// Resource booking (bookable assets)
-// ---------------------------------------------------------------------------
-
-model Booking {
-  id                 String        @id @default(cuid())
-  assetId            String
-  bookedById         String
-  onBehalfOfDeptId   String?
-  title              String?
-  startTime          DateTime
-  endTime            DateTime
-  status             BookingStatus @default(UPCOMING)
-  reminderSentAt     DateTime?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
-
-  asset          Asset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  bookedBy       User        @relation("BookingOwner", fields: [bookedById], references: [id])
-  onBehalfOfDept Department? @relation("BookingDept", fields: [onBehalfOfDeptId], references: [id], onDelete: SetNull)
-
-  @@index([bookedById])
-  @@index([onBehalfOfDeptId])
-  // Calendar render for one resource over a window; also the range the overlap
-  // check scans before the DB exclusion constraint has the final say.
-  @@index([assetId, startTime])
-  @@index([status, startTime]) // reminder sweep / lifecycle transitions
-  // GiST exclusion constraint (no overlapping non-cancelled bookings per asset)
-  // + endTime > startTime check are in the manual migration.
-}
-
-// ---------------------------------------------------------------------------
-// Maintenance
-// ---------------------------------------------------------------------------
-
-model MaintenanceRequest {
-  id              String              @id @default(cuid())
-  assetId         String
-  raisedById      String
-  approvedById    String?
-  technicianId    String?
-  description     String
-  priority        MaintenancePriority @default(MEDIUM)
-  status          MaintenanceStatus   @default(PENDING)
-  photoUrl        String?
-  resolutionNotes String?
-  approvedAt      DateTime?
-  resolvedAt      DateTime?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-
-  asset      Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  raisedBy   User  @relation("MaintenanceRaiser", fields: [raisedById], references: [id])
-  approvedBy User? @relation("MaintenanceApprover", fields: [approvedById], references: [id], onDelete: SetNull)
-  technician User? @relation("MaintenanceTechnician", fields: [technicianId], references: [id], onDelete: SetNull)
-
-  @@index([assetId])
-  @@index([raisedById])
-  @@index([technicianId])
-  // Kanban board groups by status within an org, newest first per column.
-  @@index([status, createdAt])
-}
-
-// ---------------------------------------------------------------------------
-// Audit
-// ---------------------------------------------------------------------------
-
-model AuditCycle {
-  id           String           @id @default(cuid())
-  orgId        String
-  name         String
-  scopeDeptId  String?
-  scopeLocation String?
-  startDate    DateTime
-  endDate      DateTime
-  status       AuditCycleStatus @default(PLANNED)
-  createdById  String
-  closedAt     DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-
-  org        Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  createdBy  User              @relation("AuditCreator", fields: [createdById], references: [id])
-  auditors   AuditAssignment[]
-  items      AuditItem[]
-  discrepancyReport DiscrepancyReport?
-
-  @@index([orgId])
-  @@index([createdById])
-  @@index([orgId, status])
-  // endDate >= startDate check in manual migration.
-}
-
-model AuditAssignment {
-  id        String   @id @default(cuid())
-  cycleId   String
-  auditorId String
-  createdAt DateTime @default(now())
-
-  cycle   AuditCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  auditor User       @relation(fields: [auditorId], references: [id], onDelete: Cascade)
-
-  @@unique([cycleId, auditorId])
-  @@index([cycleId])
-  @@index([auditorId])
-}
-
-model AuditItem {
-  id           String            @id @default(cuid())
-  cycleId      String
-  assetId      String
-  verification AuditVerification @default(PENDING)
-  auditedById  String?
-  notes        String?
-  auditedAt    DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-
-  cycle     AuditCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  asset     Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  auditedBy User?      @relation("AuditItemAuditor", fields: [auditedById], references: [id], onDelete: SetNull)
-
-  @@unique([cycleId, assetId]) // one row per asset per cycle
-  @@index([cycleId])
-  @@index([assetId])
-  // Discrepancy report query: flagged items in a cycle.
-  @@index([cycleId, verification])
-}
-
-model DiscrepancyReport {
-  id          String   @id @default(cuid())
-  cycleId     String   @unique
-  // Snapshot taken at cycle close: counts + the flagged asset list, frozen so
-  // the report is stable even if asset state changes afterward.
-  summary     Json
-  generatedAt DateTime @default(now())
-
-  cycle AuditCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-}
-
-// ---------------------------------------------------------------------------
-// Notifications & activity log
-// ---------------------------------------------------------------------------
-
-model Notification {
-  id                String           @id @default(cuid())
-  userId            String
-  type              NotificationType
-  title             String
-  body              String?
-  relatedEntityType String?
-  relatedEntityId   String?
-  isRead            Boolean          @default(false)
-  createdAt         DateTime         @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  // Feed: a user's notifications newest-first, plus unread badge count.
-  @@index([userId, createdAt])
-  @@index([userId, isRead])
-}
-
-model ActivityLog {
-  id         String   @id @default(cuid())
-  orgId      String
-  actorId    String?
-  action     String // e.g. "asset.allocated", "maintenance.approved"
+model ActivityEvent {
+  id         String         @id @default(uuid(7)) @db.Uuid
+  action     ActivityAction
   entityType String
-  entityId   String
-  metadata   Json? // ids/counts/labels only — never secrets or raw bodies
-  createdAt  DateTime @default(now())
+  entityId   String?        @db.Uuid
+  actorId    String?        @db.Uuid
+  summary    String
+  metadata   Json?
+  requestId  String?
+  createdAt  DateTime       @default(now())
+  actor      User?          @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
-  org   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  actor User?        @relation("LogActor", fields: [actorId], references: [id], onDelete: SetNull)
-
-  @@index([orgId, createdAt])
-  @@index([entityType, entityId])
-  @@index([actorId])
+  @@index([createdAt, id])
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([action, createdAt])
 }
 
-// ---------------------------------------------------------------------------
-// Auth (opaque, hashed-at-rest tokens)
-// ---------------------------------------------------------------------------
+model PasswordCredential {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  userId       String   @unique @db.Uuid
+  passwordHash String
+  salt         String
+  iterations   Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 
 model AuthSession {
-  id        String   @id @default(cuid())
-  userId    String
-  tokenHash String   @unique // sha256 of the opaque cookie value; raw never stored
+  id        String   @id @default(uuid(7)) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  // Active-session lookup gets a partial index (WHERE expiresAt > now) in the
-  // manual migration.
+  @@index([expiresAt])
 }
 
 model PasswordResetToken {
-  id        String    @id @default(cuid())
-  userId    String
+  id        String    @id @default(uuid(7)) @db.Uuid
+  email     String
   tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([email])
+  @@index([expiresAt])
+}
 
-  @@index([userId])
+enum UserRole {
+  ADMIN
+  USER
+  MODERATOR
+}
+
+enum ActivityAction {
+  CREATED
+  UPDATED
+  DELETED
+  BULK_UPDATED
+  BULK_DELETED
+  PROFILE_UPDATED
+  STORAGE_UPLOADED
+  STORAGE_DELETED
+  LLM_REQUESTED
+}
+
+model Product {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  name        String
+  sku         String        @unique
+  category    String
+  status      ProductStatus @default(DRAFT)
+  priceCents  Int
+  stock       Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+  @@index([name])
+  @@index([sku])
+  @@index([status, createdAt])
+  @@index([category, createdAt])
+}
+
+model Organization {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  name      String
+  slug      String           @unique
+  industry  String
+  region    String
+  plan      OrganizationPlan @default(STARTER)
+  seats     Int              @default(1)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([industry])
+  @@index([region])
+  @@index([plan])
+  @@index([createdAt])
+  @@index([name])
+  @@index([plan, createdAt])
+  @@index([industry, createdAt])
+  @@index([region, createdAt])
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+enum OrganizationPlan {
+  STARTER
+  GROWTH
+  ENTERPRISE
 }
