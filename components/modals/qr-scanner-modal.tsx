@@ -39,7 +39,7 @@ export function QrScannerModal({ onScanSuccess }: QrScannerModalProps) {
     if (!open) return;
 
     let cancelled = false;
-    setError(null);
+    const clearErrorFrame = window.requestAnimationFrame(() => setError(null));
 
     // Dynamically import html5-qrcode so it never runs on the server.
     void (async () => {
@@ -64,7 +64,7 @@ export function QrScannerModal({ onScanSuccess }: QrScannerModalProps) {
                 if (currentScanner.isScanning) {
                   void currentScanner.stop().catch(() => undefined);
                 }
-              } catch (e) {}
+              } catch {}
               scannerRef.current = null;
             }
             if (mountedRef.current) {
@@ -93,13 +93,14 @@ export function QrScannerModal({ onScanSuccess }: QrScannerModalProps) {
     // Cleanup: stop the scanner when the dialog closes or the component unmounts.
     return () => {
       cancelled = true;
+      window.cancelAnimationFrame(clearErrorFrame);
       const scanner = scannerRef.current;
       if (scanner) {
         try {
           if (scanner.isScanning) {
             void scanner.stop().catch(() => undefined);
           }
-        } catch (e) {}
+        } catch {}
         scannerRef.current = null;
       }
     };
@@ -129,7 +130,7 @@ export function QrScannerModal({ onScanSuccess }: QrScannerModalProps) {
                 if (scanner.isScanning) {
                   void scanner.stop().catch(() => undefined);
                 }
-              } catch (e) {}
+              } catch {}
               scannerRef.current = null;
             }
           }
