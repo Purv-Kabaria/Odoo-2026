@@ -47,6 +47,8 @@ export type EntityPermissions = Record<EntityAction, Role[]>;
  * Extra guard for fields within an entity that need a stricter role than
  * the entity's general `update` permission — e.g. any signed-in Asset
  * Manager can update a user's name, but only an Admin can change their role.
+ * the entity's general `update` permission — e.g. any signed-in Asset Manager
+ * can update a user's name, but only an Admin can change their role.
  */
 export type RestrictedFields = {
   fields: string[];
@@ -58,7 +60,7 @@ export type EntityConfig = {
   key: string;
   label: string;
   singularLabel: string;
-  prismaModel: 'user' | 'organization';
+  prismaModel: 'user' | 'organization' | 'department' | 'asset' | 'assetCategory';
   columns: EntityColumn[];
   /** Validates both create and update payloads (id/createdAt/updatedAt omitted). */
   schema: z.ZodTypeAny;
