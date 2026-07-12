@@ -1,14 +1,21 @@
-import { logger } from "@/lib/logger";
 import { recordActivityEvent } from "@/lib/activity-events";
+import { runBookingLifecycleSweep } from "@/lib/cron/booking-lifecycle";
+import { logger } from "@/lib/logger";
 import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 const GRACE_PERIOD_MS = 5 * 60 * 1000;
 
 /**
- * Two-phase check-in enforcement, each phase claiming rows one at a time via
- * a guarded updateMany (where id + the still-false guard field) so two
- * overlapping cron ticks can't both act on the same booking:
+ * Registered as a single node-cron job (see lib/cron/index.ts) — node-cron
+ * schedules run on independent timers with no ordering guarantee between
+ * jobs, so the lifecycle transition (UPCOMING/ONGOING/COMPLETED) runs first
+ * *inside* this function rather than as a separate registered job, to
+ * guarantee it always happens before the check-in phases below see the row.
+ *
+ * Two-phase check-in enforcement after that, each phase claiming rows one at
+ * a time via a guarded updateMany (where id + the still-false guard field)
+ * so two overlapping cron ticks can't both act on the same booking:
  *
  *  Phase 1 — first miss: push checkInDeadline out by 5 minutes (grace) and
  *  notify. checkInGraceExtended flips true, doubling as the de-dupe guard.
@@ -18,6 +25,8 @@ const GRACE_PERIOD_MS = 5 * 60 * 1000;
  *  is needed for other users to book the same window.
  */
 export async function runBookingCheckInSweep(): Promise<{ extendedCount: number; cancelledCount: number }> {
+  await runBookingLifecycleSweep();
+
   const now = new Date();
 
   const graceCandidates = await prisma.booking.findMany({
