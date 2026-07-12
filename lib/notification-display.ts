@@ -1,3 +1,11 @@
+import {
+  Bell,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardCheck,
+  type LucideIcon,
+} from "lucide-react";
+
 /**
  * Client-safe display metadata for notification categories. Deliberately
  * separate from `lib/notifications.ts` (server-only: imports Prisma,
@@ -13,6 +21,14 @@ export const CATEGORY_LABELS: Record<NotificationCategoryValue, string> = {
   BOOKING: "Bookings",
   ASSIGNMENT: "Assignments",
   INFO: "Info",
+};
+
+export const CATEGORY_ICONS: Record<NotificationCategoryValue, LucideIcon> = {
+  ALERT: Bell,
+  APPROVAL: CheckCircle2,
+  BOOKING: CalendarClock,
+  ASSIGNMENT: ClipboardCheck,
+  INFO: Bell,
 };
 
 export const CATEGORY_DOT_CLASS: Record<NotificationCategoryValue, string> = {
@@ -31,6 +47,7 @@ export type NotificationView = {
   body: string | null;
   entityType: string | null;
   entityId: string | null;
+  metadata: unknown;
   readAt: string | null;
   createdAt: string;
 };
