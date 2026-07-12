@@ -1,6 +1,5 @@
 import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
-import { canManuallyTransitionAssetStatus } from "@/lib/assets";
 import { getCurrentUser } from "@/lib/auth";
 import { assetSearchConfig } from "@/lib/entities/assets";
 import { logger } from "@/lib/logger";
@@ -83,7 +82,7 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
 
     if (
       validation.data.status &&
-      !canManuallyTransitionAssetStatus(existing.status)
+      !["AVAILABLE", "RETIRED", "DISPOSED"].includes(existing.status)
     ) {
       return Api.badRequest(
         `Cannot manually change status while the asset is ${existing.status.toLowerCase().replace("_", " ")} — that's driven by its allocation, booking, or maintenance state.`,
