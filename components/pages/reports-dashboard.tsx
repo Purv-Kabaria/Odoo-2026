@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "framer-motion";
+import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
@@ -66,6 +68,101 @@ function ExportLink({ report, filters }: { report: string; filters: { idleDays: 
     >
       Export CSV
     </a>
+  );
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [prefers, setPrefers] = React.useState(false);
+
+  React.useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const frame = window.requestAnimationFrame(() => setPrefers(query.matches));
+    const onChange = () => setPrefers(query.matches);
+    query.addEventListener("change", onChange);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      query.removeEventListener("change", onChange);
+    };
+  }, []);
+
+  return prefers;
+}
+
+const MotionTableRow = motion.create(TableRow);
+
+/**
+ * Compact-by-default ranked table (Vercel-dashboard style): shows only the
+ * top `compactCount` rows until the caller expands it, rather than dumping
+ * every row on first paint. Rows that were already visible keep their React
+ * key across a toggle (no remount, no re-animation) — only newly-revealed
+ * rows fade in, so collapsing stays instant while expanding feels animated.
+ */
+function ExpandableTable<T>({
+  rows,
+  headers,
+  rowKey,
+  renderCells,
+  emptyMessage,
+  compactCount = 5,
+}: {
+  rows: T[];
+  headers: string[];
+  rowKey: (row: T) => string;
+  renderCells: (row: T) => React.ReactNode;
+  emptyMessage: string;
+  compactCount?: number;
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  if (rows.length === 0) {
+    return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
+  }
+
+  const hasOverflow = rows.length > compactCount;
+  const visibleRows = expanded ? rows : rows.slice(0, compactCount);
+
+  return (
+    <div>
+      <Table className={expanded ? undefined : "[&_td]:py-1 [&_th]:h-8"}>
+        <TableHeader>
+          <TableRow>
+            {headers.map((header) => (
+              <TableHead key={header}>{header}</TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {visibleRows.map((row) => (
+            <MotionTableRow
+              key={rowKey(row)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.18 }}
+            >
+              {renderCells(row)}
+            </MotionTableRow>
+          ))}
+        </TableBody>
+      </Table>
+      {hasOverflow && (
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          aria-expanded={expanded}
+          className="mt-1.5 flex w-full cursor-pointer items-center justify-center gap-1 rounded-md py-1 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <motion.span
+            animate={{ rotate: expanded ? 180 : 0 }}
+            transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.18 }}
+            className="flex"
+          >
+            <ChevronDown className="size-3.5" />
+          </motion.span>
+          {expanded ? "Show less" : `Show all ${rows.length}`}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -272,89 +369,69 @@ export function ReportsDashboard() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <SectionCard title="Most used assets" exportKey="most-used-assets" filters={filters}>
-              {data.mostUsedAssets.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No data yet.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Tag</TableHead><TableHead>Name</TableHead><TableHead>Uses</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.mostUsedAssets.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell className="font-medium">{row.assetTag}</TableCell>
-                        <TableCell>{row.name}</TableCell>
-                        <TableCell>{row.usageCount}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+              <ExpandableTable
+                rows={data.mostUsedAssets}
+                headers={["Tag", "Name", "Uses"]}
+                rowKey={(row) => row.id}
+                emptyMessage="No data yet."
+                renderCells={(row) => (
+                  <>
+                    <TableCell className="font-medium">{row.assetTag}</TableCell>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell>{row.usageCount}</TableCell>
+                  </>
+                )}
+              />
             </SectionCard>
 
             <SectionCard title="Idle assets" exportKey="idle-assets" filters={filters}>
-              {data.idleAssets.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No idle assets.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Tag</TableHead><TableHead>Name</TableHead><TableHead>Idle for</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.idleAssets.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell className="font-medium">{row.assetTag}</TableCell>
-                        <TableCell>{row.name}</TableCell>
-                        <TableCell>{row.idleSinceDays !== null ? `${row.idleSinceDays}d` : "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+              <ExpandableTable
+                rows={data.idleAssets}
+                headers={["Tag", "Name", "Idle for"]}
+                rowKey={(row) => row.id}
+                emptyMessage="No idle assets."
+                renderCells={(row) => (
+                  <>
+                    <TableCell className="font-medium">{row.assetTag}</TableCell>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell>{row.idleSinceDays !== null ? `${row.idleSinceDays}d` : "—"}</TableCell>
+                  </>
+                )}
+              />
             </SectionCard>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <SectionCard title="Nearing retirement" exportKey="nearing-retirement" filters={filters}>
-              {data.nearingRetirement.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No assets nearing retirement.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Tag</TableHead><TableHead>Name</TableHead><TableHead>Age</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.nearingRetirement.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell className="font-medium">{row.assetTag}</TableCell>
-                        <TableCell>{row.name}</TableCell>
-                        <TableCell>{row.ageYears !== null ? `${row.ageYears}y` : "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+              <ExpandableTable
+                rows={data.nearingRetirement}
+                headers={["Tag", "Name", "Age"]}
+                rowKey={(row) => row.id}
+                emptyMessage="No assets nearing retirement."
+                renderCells={(row) => (
+                  <>
+                    <TableCell className="font-medium">{row.assetTag}</TableCell>
+                    <TableCell>{row.name}</TableCell>
+                    <TableCell>{row.ageYears !== null ? `${row.ageYears}y` : "—"}</TableCell>
+                  </>
+                )}
+              />
             </SectionCard>
 
             <SectionCard title="Spend by category" exportKey="spend-by-category" filters={filters}>
-              {data.spendByCategory.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No acquisition cost data yet.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow><TableHead>Category</TableHead><TableHead>Assets</TableHead><TableHead>Total cost</TableHead></TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.spendByCategory.map((row) => (
-                      <TableRow key={row.categoryId}>
-                        <TableCell className="font-medium">{row.categoryName}</TableCell>
-                        <TableCell>{row.assetCount}</TableCell>
-                        <TableCell>${row.totalCost.toLocaleString()}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
+              <ExpandableTable
+                rows={data.spendByCategory}
+                headers={["Category", "Assets", "Total cost"]}
+                rowKey={(row) => row.categoryId}
+                emptyMessage="No acquisition cost data yet."
+                renderCells={(row) => (
+                  <>
+                    <TableCell className="font-medium">{row.categoryName}</TableCell>
+                    <TableCell>{row.assetCount}</TableCell>
+                    <TableCell>${row.totalCost.toLocaleString()}</TableCell>
+                  </>
+                )}
+              />
             </SectionCard>
           </div>
 
