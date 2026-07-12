@@ -8,7 +8,7 @@ export const AssetListQuerySchema = z.object({
   status: z
     .enum(["AVAILABLE", "ALLOCATED", "RESERVED", "UNDER_MAINTENANCE", "LOST", "RETIRED", "DISPOSED"])
     .optional(),
-  departmentId: z.string().cuid().optional(),
+  departmentId: z.string().uuid().optional(),
   location: z.string().trim().max(120).optional(),
 });
 
@@ -16,7 +16,7 @@ export const CustomFieldValueSchema = z.union([z.string(), z.number(), z.boolean
 
 export const AssetCreateSchema = z.object({
   name: z.string().trim().min(2, "Name must be at least 2 characters").max(140),
-  categoryId: z.string().cuid("Select a category"),
+  categoryId: z.string().uuid("Select a category"),
   serialNumber: z.string().trim().max(120).optional().nullable(),
   acquisitionDate: z.coerce.date().optional().nullable(),
   acquisitionCost: z.coerce.number().min(0).max(99_999_999.99).optional().nullable(),

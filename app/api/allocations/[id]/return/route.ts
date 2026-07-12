@@ -8,7 +8,7 @@ import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { ReturnAllocationSchema } from "@/types/allocation-types";
 import { z } from "zod";
 
-const IdSchema = z.object({ id: z.string().cuid() });
+const IdSchema = z.object({ id: z.string().uuid() });
 
 function canReturn(role: string): boolean {
   return role === "ADMIN" || role === "ASSET_MANAGER";

@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-const IdSchema = z.object({ id: z.string().cuid() });
+const IdSchema = z.object({ id: z.string().uuid() });
 
 function canDecide(role: string): boolean {
   return role === "ADMIN" || role === "ASSET_MANAGER";

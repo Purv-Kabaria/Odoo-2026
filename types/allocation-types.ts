@@ -2,9 +2,9 @@ import { z } from "zod";
 
 export const AllocateAssetSchema = z
   .object({
-    assetId: z.string().cuid(),
-    toEmployeeId: z.string().cuid().optional(),
-    toDepartmentId: z.string().cuid().optional(),
+    assetId: z.string().uuid(),
+    toEmployeeId: z.string().uuid().optional(),
+    toDepartmentId: z.string().uuid().optional(),
     expectedReturnDate: z.coerce.date().optional().nullable(),
   })
   .refine((data) => Boolean(data.toEmployeeId) !== Boolean(data.toDepartmentId), {
@@ -24,8 +24,8 @@ export const AllocationListQuerySchema = z.object({
 });
 
 export const TransferRequestCreateSchema = z.object({
-  assetId: z.string().cuid(),
-  toEmployeeId: z.string().cuid(),
+  assetId: z.string().uuid(),
+  toEmployeeId: z.string().uuid(),
   reason: z.string().trim().min(2).max(500),
 });
 

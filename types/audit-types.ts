@@ -9,11 +9,11 @@ export const AuditCycleListQuerySchema = z.object({
 export const AuditCycleCreateSchema = z
   .object({
     name: z.string().trim().min(2, "Name must be at least 2 characters").max(140),
-    scopeDeptId: z.string().cuid().optional().nullable(),
+    scopeDeptId: z.string().uuid().optional().nullable(),
     scopeLocation: z.string().trim().min(1).max(160).optional().nullable(),
     startDate: z.coerce.date(),
     endDate: z.coerce.date(),
-    auditorIds: z.array(z.string().cuid()).min(1, "Assign at least one auditor").max(20),
+    auditorIds: z.array(z.string().uuid()).min(1, "Assign at least one auditor").max(20),
   })
   .refine((data) => !(data.scopeDeptId && data.scopeLocation), {
     message: "Scope by department or location, not both",
