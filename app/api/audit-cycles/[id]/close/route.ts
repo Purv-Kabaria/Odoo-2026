@@ -6,7 +6,7 @@ import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-const IdSchema = z.object({ id: z.string().cuid() });
+const IdSchema = z.object({ id: z.string().uuid() });
 
 export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID();

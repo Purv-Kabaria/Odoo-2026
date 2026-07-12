@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { BookingWindowQuerySchema } from "@/types/booking-types";
 import { z } from "zod";
 
-const IdSchema = z.object({ id: z.string().cuid() });
+const IdSchema = z.object({ id: z.string().uuid() });
 
 export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID();

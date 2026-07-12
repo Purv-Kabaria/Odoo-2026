@@ -9,7 +9,7 @@ import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { AssetUpdateSchema } from "@/types/asset-types";
 import { z } from "zod";
 
-const IdSchema = z.object({ id: z.string().cuid("Invalid asset id") });
+const IdSchema = z.object({ id: z.string().uuid("Invalid asset id") });
 
 function canManageAssets(role: string): boolean {
   return role === "ADMIN" || role === "ASSET_MANAGER";

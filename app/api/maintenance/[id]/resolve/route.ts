@@ -7,7 +7,7 @@ import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { MaintenanceResolveSchema } from "@/types/maintenance-types";
 import { z } from "zod";
 
-const IdSchema = z.object({ id: z.string().cuid() });
+const IdSchema = z.object({ id: z.string().uuid() });
 
 export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID();
