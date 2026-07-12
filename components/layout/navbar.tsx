@@ -62,9 +62,9 @@ export function Navbar({ user }: NavbarProps) {
         <div className="flex w-full justify-between items-center">
           <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center space-x-2 group cursor-pointer">
-              <Image src="/logo.svg" alt="Odoo" width={24} height={24} className="w-6 h-6 group-hover:opacity-80 transition-opacity" />
-              <span className="font-bold text-lg tracking-tight sm:inline-block">
-                Odoo
+              <Image src="/logo.png" alt="AssetFlow" width={28} height={28} className="w-7 h-7 group-hover:opacity-80 transition-opacity" />
+              <span className="font-heading font-bold text-lg tracking-tight sm:inline-block">
+                AssetFlow
               </span>
             </Link>
             {user ? (
@@ -141,8 +141,8 @@ export function Navbar({ user }: NavbarProps) {
               </SheetTrigger>
               <SheetContent side="right" className="w-[300px] sm:w-[400px]">
                 <SheetHeader>
-                  <SheetTitle className="text-left font-bold text-lg flex items-center gap-2">
-                    <Image src="/logo.svg" alt="Odoo" width={24} height={24} className="w-6 h-6" /> Odoo
+                  <SheetTitle className="text-left font-heading font-bold text-lg flex items-center gap-2">
+                    <Image src="/logo.png" alt="AssetFlow" width={24} height={24} className="w-6 h-6" /> AssetFlow
                   </SheetTitle>
                 </SheetHeader>
                 <nav className="flex flex-col space-y-3 mt-10 text-sm font-medium">
