@@ -23,7 +23,7 @@ import { buildOrderBy, buildWhere, parseListQuery } from './query';
 import { canPerform } from './types';
 import type { EntityColumn, EntityConfig } from './types';
 
-const EntityIdSchema = z.object({ id: z.string().cuid('Invalid identifier') });
+const EntityIdSchema = z.object({ id: z.uuid('Invalid identifier') });
 
 type EntityListCacheValue = {
   rows: Record<string, unknown>[];
