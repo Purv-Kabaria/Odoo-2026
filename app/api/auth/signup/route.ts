@@ -35,16 +35,15 @@ export async function POST(req: Request) {
       );
     }
 
-    const { name, email, password, orgSlug } = validation.data;
+    const { name, email, password } = validation.data;
 
-    // Look up the organization by slug — orgs are provisioned out-of-band.
-    const org = await prisma.organization.findUnique({
-      where: { slug: orgSlug },
+    // Single-tenant application: just grab the first (and only) organization.
+    const org = await prisma.organization.findFirst({
       select: { id: true },
     });
 
     if (!org) {
-      return Api.badRequest("Organization not found");
+      return Api.internalError("System configuration error: No organization found");
     }
 
     const passwordHash = hashPassword(password);

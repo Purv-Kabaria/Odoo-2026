@@ -50,11 +50,6 @@ export const SignupSchema = z
       .string()
       .min(8, "Password must be at least 8 characters")
       .max(128),
-    orgSlug: z
-      .string()
-      .trim()
-      .min(1, "Organization slug is required")
-      .max(120),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
