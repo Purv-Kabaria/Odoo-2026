@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AssignTechnicianModal } from "@/components/modals/assign-technician-modal";
 import { RaiseMaintenanceModal } from "@/components/modals/raise-maintenance-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readApiResponse } from "@/lib/api-client";
@@ -38,6 +39,7 @@ export function MaintenanceBoard({ canDecide, currentUserId }: { canDecide: bool
   const [isLoading, setIsLoading] = React.useState(true);
   const [showRejected, setShowRejected] = React.useState(false);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [assignTargetId, setAssignTargetId] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     setIsLoading(true);
@@ -124,10 +126,7 @@ export function MaintenanceBoard({ canDecide, currentUserId }: { canDecide: bool
                         <Button
                           size="sm"
                           className="h-7 cursor-pointer px-2 text-xs"
-                          onClick={() => {
-                            const technicianId = window.prompt("Technician user id");
-                            if (technicianId) void runAction(item.id, "assign", { technicianId });
-                          }}
+                          onClick={() => setAssignTargetId(item.id)}
                         >
                           Assign technician
                         </Button>
@@ -149,6 +148,12 @@ export function MaintenanceBoard({ canDecide, currentUserId }: { canDecide: bool
       )}
 
       <RaiseMaintenanceModal open={isModalOpen} onOpenChange={setIsModalOpen} onCreated={() => { setIsModalOpen(false); void load(); }} />
+      <AssignTechnicianModal
+        open={assignTargetId !== null}
+        onOpenChange={(next) => { if (!next) setAssignTargetId(null); }}
+        maintenanceId={assignTargetId}
+        onAssigned={() => { setAssignTargetId(null); void load(); }}
+      />
     </main>
   );
 }
