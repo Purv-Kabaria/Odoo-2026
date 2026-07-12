@@ -36,5 +36,6 @@ export const config = {
     "/assets/:path*",
     "/audit/:path*",
     "/reports/:path*",
+    "/notifications/:path*",
   ],
 };
