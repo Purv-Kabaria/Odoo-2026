@@ -7,5 +7,5 @@ export default async function BookingsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  return <BookingWorkspace isManager={user.role !== "EMPLOYEE"} />;
+  return <BookingWorkspace />;
 }
