@@ -7,19 +7,32 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { readApiResponse } from "@/lib/api-client";
 
 type AccountSettingsFormProps = {
   initialName: string;
+  initialLocation: string | null;
+  initialGender: string | null;
   email: string;
 };
 
 export function AccountSettingsForm({
   initialName,
+  initialLocation,
+  initialGender,
   email,
 }: AccountSettingsFormProps) {
   const router = useRouter();
   const [name, setName] = React.useState(initialName);
+  const [location, setLocation] = React.useState(initialLocation ?? "");
+  const [gender, setGender] = React.useState(initialGender ?? "unset");
   const [currentPassword, setCurrentPassword] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
@@ -34,7 +47,11 @@ export function AccountSettingsForm({
       const response = await fetch("/api/account", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          location,
+          gender: gender === "unset" ? null : gender,
+        }),
       });
 
       await readApiResponse(response, "Failed to update profile");
@@ -100,6 +117,38 @@ export function AccountSettingsForm({
           <div className="grid gap-2">
             <Label htmlFor="account-email">Email</Label>
             <Input id="account-email" value={email} disabled />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="account-location">Location</Label>
+            <Input
+              id="account-location"
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+              maxLength={120}
+              placeholder="City, country"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="account-gender">Gender</Label>
+            <Select value={gender} onValueChange={setGender}>
+              <SelectTrigger id="account-gender" className="cursor-pointer shadow-sm">
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unset" className="cursor-pointer">
+                  Not specified
+                </SelectItem>
+                <SelectItem value="Male" className="cursor-pointer">
+                  Male
+                </SelectItem>
+                <SelectItem value="Female" className="cursor-pointer">
+                  Female
+                </SelectItem>
+                <SelectItem value="Other" className="cursor-pointer">
+                  Other
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <Button
             type="submit"

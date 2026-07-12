@@ -1,14 +1,4 @@
-import {
-  Activity,
-  Boxes,
-  Building2,
-  CalendarClock,
-  Gauge,
-  ShieldCheck,
-  UserCircle,
-  Users,
-  Wrench,
-} from "lucide-react";
+import { Activity, Building2, Database, Gauge, Package, ShieldCheck, UserCircle, Users } from "lucide-react";
 import type { Role } from "@prisma/client";
 
 export type NavigationLink = {
@@ -18,68 +8,48 @@ export type NavigationLink = {
   roles: Role[];
 };
 
-const ALL_ROLES: Role[] = ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"];
-
 export const navigationLinks: NavigationLink[] = [
   {
-    title: "Admin",
-    href: "/admin",
+    title: "Dashboard",
+    href: "/dashboard",
     icon: Gauge,
-    roles: ["ADMIN"],
-  },
-  {
-    title: "Asset Manager",
-    href: "/moderator",
-    icon: ShieldCheck,
-    roles: ["ADMIN", "ASSET_MANAGER"],
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
   },
   {
     title: "Assets",
     href: "/assets",
-    icon: Boxes,
-    roles: ALL_ROLES,
+    icon: Package,
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
   },
   {
-    title: "Allocation & Transfer",
-    href: "/allocations",
-    icon: Users,
-    roles: ALL_ROLES,
-  },
-  {
-    title: "Resource Booking",
-    href: "/bookings",
-    icon: CalendarClock,
-    roles: ALL_ROLES,
+    title: "Departments",
+    href: "/departments",
+    icon: Building2,
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD"],
   },
   {
     title: "Maintenance",
     href: "/maintenance",
-    icon: Wrench,
-    roles: ALL_ROLES,
+    icon: ShieldCheck,
+    roles: ["ADMIN", "ASSET_MANAGER"],
   },
   {
     title: "Account",
     href: "/account",
     icon: UserCircle,
-    roles: ALL_ROLES,
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
   },
   {
     title: "Activity",
     href: "/activity",
     icon: Activity,
-    roles: ALL_ROLES,
+    roles: ["ADMIN", "ASSET_MANAGER"],
   },
   {
     title: "Users",
     href: "/users",
     icon: Users,
     roles: ["ADMIN", "ASSET_MANAGER"],
-  },
-  {
-    title: "Organizations",
-    href: "/organizations",
-    icon: Building2,
-    roles: ["ADMIN"],
   },
 ];
 
@@ -88,7 +58,5 @@ export function navigationLinksForRole(role: Role): NavigationLink[] {
 }
 
 export function dashboardHrefForRole(role: Role): string {
-  if (role === "ADMIN") return "/admin";
-  if (role === "ASSET_MANAGER") return "/moderator";
-  return "/assets";
+  return "/dashboard";
 }

@@ -10,7 +10,9 @@ export const UserSchema = z.object({
     .email('Invalid email address')
     .max(254),
   role: z.enum(['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD', 'EMPLOYEE']).default('EMPLOYEE'),
-  status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
+  status: z.enum(['PENDING_APPROVAL', 'ACTIVE', 'INACTIVE']).default('PENDING_APPROVAL'),
+  orgId: z.string().cuid().optional(),
+  departmentId: z.string().cuid().optional().nullable(),
   createdAt: z.union([z.string(), z.date()]).optional(),
   updatedAt: z.union([z.string(), z.date()]).optional(),
 });

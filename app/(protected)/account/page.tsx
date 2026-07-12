@@ -28,7 +28,12 @@ export default async function AccountPage() {
         </Badge>
       </div>
 
-      <AccountSettingsForm initialName={user.name} email={user.email} />
+      <AccountSettingsForm
+        initialName={user.name}
+        initialLocation={user.location}
+        initialGender={user.gender}
+        email={user.email}
+      />
     </main>
   );
 }

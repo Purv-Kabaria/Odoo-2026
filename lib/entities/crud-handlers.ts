@@ -281,12 +281,14 @@ export function createCollectionHandlers(config: EntityConfig) {
       void upsertInSearch(config, [created]);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        orgId: user.orgId,
-        action: `${config.key}.created`,
+        action: 'CREATED',
         actorId: user.id,
         entityType: config.key,
+        orgId: user.orgId,
         entityId: created.id as string,
-        metadata: { requestId },
+        summary: `${config.singularLabel} created`,
+        requestId,
+        metadata: { entityLabel: config.singularLabel },
       });
       logger.info(`${config.key}.create`, {
         requestId,
@@ -355,13 +357,13 @@ export function createCollectionHandlers(config: EntityConfig) {
       void upsertInSearch(config, updatedRows);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        orgId: user.orgId,
-        action: `${config.key}.bulk_updated`,
+        action: 'BULK_UPDATED',
         actorId: user.id,
         entityType: config.key,
-        entityId: 'bulk',
+        orgId: user.orgId,
+        summary: `${result.count} ${config.label.toLowerCase()} updated`,
+        requestId,
         metadata: {
-          requestId,
           field,
           requestedCount: ids.length,
           updatedCount: result.count,
@@ -412,13 +414,13 @@ export function createCollectionHandlers(config: EntityConfig) {
       void deleteFromSearch(config, ids);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        orgId: user.orgId,
-        action: `${config.key}.bulk_deleted`,
+        action: 'BULK_DELETED',
         actorId: user.id,
         entityType: config.key,
-        entityId: 'bulk',
+        orgId: user.orgId,
+        summary: `${result.count} ${config.label.toLowerCase()} deleted`,
+        requestId,
         metadata: {
-          requestId,
           scope: ids && ids.length > 0 ? 'selected' : 'all',
           requestedCount: ids?.length ?? null,
           deletedCount: result.count,
@@ -495,12 +497,14 @@ export function createItemHandlers(config: EntityConfig) {
       void upsertInSearch(config, [updated]);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        orgId: user.orgId,
-        action: `${config.key}.updated`,
+        action: 'UPDATED',
         actorId: user.id,
         entityType: config.key,
+        orgId: user.orgId,
         entityId: idResult.data.id,
-        metadata: { requestId },
+        summary: `${config.singularLabel} updated`,
+        requestId,
+        metadata: { entityLabel: config.singularLabel },
       });
       logger.info(`${config.key}.update`, { requestId, id: idResult.data.id });
 
@@ -549,12 +553,14 @@ export function createItemHandlers(config: EntityConfig) {
       void deleteFromSearch(config, [idResult.data.id]);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        orgId: user.orgId,
-        action: `${config.key}.deleted`,
+        action: 'DELETED',
         actorId: user.id,
         entityType: config.key,
+        orgId: user.orgId,
         entityId: idResult.data.id,
-        metadata: { requestId },
+        summary: `${config.singularLabel} deleted`,
+        requestId,
+        metadata: { entityLabel: config.singularLabel },
       });
       logger.info(`${config.key}.delete`, { requestId, id: idResult.data.id });
 
