@@ -23,12 +23,15 @@ export async function GET(req: Request) {
     const where: Prisma.MaintenanceRequestWhereInput = { asset: { orgId: user.orgId } };
     if (statusParam) {
       where.status = statusParam as Prisma.MaintenanceRequestWhereInput["status"];
-    } else if (!canManage(user.role)) {
-      // Full kanban view is Asset Manager/Admin; everyone else sees only
-      // what they raised or are the assigned technician for.
-      where.OR = [{ raisedById: user.id }, { technicianId: user.id }];
-    } else {
+    } else if (canManage(user.role)) {
       where.status = { not: "REJECTED" };
+    }
+    if (!canManage(user.role)) {
+      // Full kanban view is Asset Manager/Admin; everyone else sees only
+      // what they raised or are the assigned technician for — this must
+      // apply regardless of whether a status filter is present, or a
+      // non-manager could see every org-wide request via ?status=X.
+      where.OR = [{ raisedById: user.id }, { technicianId: user.id }];
     }
 
     const rows = await prisma.maintenanceRequest.findMany({

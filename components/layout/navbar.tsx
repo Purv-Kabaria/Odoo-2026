@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Menu, ChevronRight, LogIn, UserPlus, LogOut, Sun, Moon, LayoutDashboard } from "lucide-react"
 import Image from "next/image"
-import { NotificationBell } from "@/components/layout/notification-bell"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet"
 import {
   DropdownMenu,
@@ -84,7 +83,7 @@ export function Navbar({ user }: NavbarProps) {
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2 rounded-none px-3 font-medium shadow-sm cursor-pointer">
+                    <Button variant="outline" size="sm" className="gap-2 px-3 font-medium shadow-sm cursor-pointer">
                       <span className="flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-semibold text-primary">
                         {initialsFor(user.name)}
                       </span>
@@ -114,21 +113,20 @@ export function Navbar({ user }: NavbarProps) {
                 </DropdownMenu>
               ) : (
                 <>
-                  <Button asChild variant="outline" size="sm" className="font-medium rounded-none px-4 cursor-pointer shadow-sm">
+                  <Button asChild variant="outline" size="sm" className="font-medium px-4 cursor-pointer shadow-sm">
                     <Link href="/login">Log in</Link>
                   </Button>
-                  <Button asChild size="sm" className="font-medium rounded-none px-4 cursor-pointer shadow-sm">
+                  <Button asChild size="sm" className="font-medium px-4 cursor-pointer shadow-sm">
                     <Link href="/signup">Sign up</Link>
                   </Button>
                 </>
               )}
             </div>
-            {user ? <NotificationBell /> : null}
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleTheme}
-              className="cursor-pointer rounded-none md:mr-2"
+              className="cursor-pointer md:mr-2"
             >
               <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -151,7 +149,7 @@ export function Navbar({ user }: NavbarProps) {
                   {user
                     ? roleLinks.map((link) => (
                         <div key={link.href}>
-                          <Link href={link.href} className="flex items-center gap-3 p-3 rounded-none bg-muted/30 border border-transparent hover:border-border transition-colors cursor-pointer text-foreground/80 hover:text-primary">
+                          <Link href={link.href} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-transparent hover:border-border transition-colors cursor-pointer text-foreground/80 hover:text-primary">
                             <link.icon className="h-4 w-4" />
                             <span className="flex-1">{link.title}</span>
                             <ChevronRight className="h-4 w-4 opacity-50" />
@@ -166,19 +164,19 @@ export function Navbar({ user }: NavbarProps) {
                         type="button"
                         disabled={isLoggingOut}
                         onClick={() => void handleLogout()}
-                        className="flex w-full items-center gap-3 p-3 rounded-none bg-muted/30 border border-transparent hover:border-border transition-colors cursor-pointer text-foreground/80 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex w-full items-center gap-3 p-3 rounded-lg bg-muted/30 border border-transparent hover:border-border transition-colors cursor-pointer text-foreground/80 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <LogOut className="h-4 w-4" />
                         <span className="flex-1 text-left">{isLoggingOut ? "Signing out..." : "Log out"}</span>
                       </button>
                     ) : (
                       <>
-                        <Link href="/login" className="flex items-center gap-3 p-3 rounded-none bg-muted/30 border border-transparent hover:border-border transition-colors cursor-pointer text-foreground/80 hover:text-primary">
+                        <Link href="/login" className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-transparent hover:border-border transition-colors cursor-pointer text-foreground/80 hover:text-primary">
                           <LogIn className="h-4 w-4" />
                           <span className="flex-1">Log in</span>
                           <ChevronRight className="h-4 w-4 opacity-50" />
                         </Link>
-                        <Link href="/signup" className="flex items-center gap-3 p-3 rounded-none bg-muted/30 border border-transparent hover:border-border transition-colors cursor-pointer text-foreground/80 hover:text-primary">
+                        <Link href="/signup" className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-transparent hover:border-border transition-colors cursor-pointer text-foreground/80 hover:text-primary">
                           <UserPlus className="h-4 w-4" />
                           <span className="flex-1">Sign up</span>
                           <ChevronRight className="h-4 w-4 opacity-50" />

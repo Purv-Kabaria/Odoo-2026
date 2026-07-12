@@ -51,7 +51,7 @@ export async function POST(req: Request) {
 
       await prisma.passwordResetToken.create({
         data: {
-          email: user.email,
+          userId: user.id,
           tokenHash,
           expiresAt,
         },

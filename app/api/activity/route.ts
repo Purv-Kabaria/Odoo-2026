@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 import { ActivityListQuerySchema } from "@/types/activity-types";
 
 function canReadAllActivity(role: string): boolean {
-  return role === "ADMIN" || role === "MODERATOR";
+  return role === "ADMIN" || role === "ASSET_MANAGER";
 }
 
 export async function GET(req: Request) {
@@ -28,6 +28,7 @@ export async function GET(req: Request) {
     const events = await listActivityEvents({
       limit: validation.data.limit,
       since: validation.data.since ? new Date(validation.data.since) : undefined,
+      orgId: user.orgId,
       actorId: user.id,
       includeAll: canReadAllActivity(user.role),
     });
