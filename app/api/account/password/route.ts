@@ -48,12 +48,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const credential = await prisma.passwordCredential.findUnique({
-      where: { userId: user.id },
+    const currentUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { passwordHash: true },
     });
     if (
-      !credential ||
-      !verifyPassword(validation.data.currentPassword, credential)
+      !currentUser ||
+      !verifyPassword(validation.data.currentPassword, currentUser)
     ) {
       return Api.badRequest('Current password is incorrect');
     }
@@ -61,12 +62,12 @@ export async function POST(req: Request) {
     const cookieStore = await cookies();
     const currentToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
     const currentTokenHash = currentToken ? hashToken(currentToken) : null;
-    const newCredential = hashPassword(validation.data.password);
+    const { passwordHash } = hashPassword(validation.data.password);
 
     await prisma.$transaction([
-      prisma.passwordCredential.update({
-        where: { userId: user.id },
-        data: newCredential,
+      prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
       }),
       // Keep the current session alive, sign out every other device/session.
       prisma.authSession.deleteMany({
