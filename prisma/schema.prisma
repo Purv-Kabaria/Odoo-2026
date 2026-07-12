@@ -115,6 +115,11 @@ enum NotificationType {
   TRANSFER_REJECTED
   MAINTENANCE_APPROVED
   MAINTENANCE_REJECTED
+  // No dedicated notify moment in the original API design (which only
+  // documents approve/reject) — added for the technician-assignment and
+  // resolution steps of the maintenance workflow.
+  MAINTENANCE_TECHNICIAN_ASSIGNED
+  MAINTENANCE_RESOLVED
   BOOKING_CONFIRMED
   BOOKING_CANCELLED
   BOOKING_REMINDER
@@ -376,6 +381,11 @@ model Booking {
   endTime          DateTime
   status           BookingStatus @default(UPCOMING)
   reminderSentAt   DateTime?
+  // Only Booking gets a check-in concept — a scheduled session someone
+  // should show up for. Allocation has no analogous "arrival" step
+  // anywhere in the spec; an allocation is considered delivered the
+  // moment it's created.
+  checkedIn        Boolean       @default(false)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
