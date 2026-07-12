@@ -228,6 +228,30 @@ async function main() {
   }
 
   // ---------------------------------------------------------------------
+  // Asset Kits — one ready-to-allocate demo kit. Assets 0/3/8 are left
+  // AVAILABLE and untouched elsewhere in this script so the demo's "allocate
+  // a multi-asset kit to a department" step can actually succeed live.
+  // ---------------------------------------------------------------------
+  const newHireKit = await prisma.assetKit.upsert({
+    where: { orgId_name: { orgId: org.id, name: "New Hire Kit" } },
+    update: {},
+    create: {
+      orgId: org.id,
+      name: "New Hire Kit",
+      description: "Laptop, monitor, and webcam bundle for onboarding a new employee.",
+      createdById: manager.id,
+    },
+  });
+  const newHireKitAssetIdxs = [0, 3, 8];
+  for (const idx of newHireKitAssetIdxs) {
+    await prisma.assetKitItem.upsert({
+      where: { kitId_assetId: { kitId: newHireKit.id, assetId: assets[idx].id } },
+      update: {},
+      create: { kitId: newHireKit.id, assetId: assets[idx].id },
+    });
+  }
+
+  // ---------------------------------------------------------------------
   // Allocations — active (matching ALLOCATED assets) + returned history
   // ---------------------------------------------------------------------
   const activeAllocationDefs = [
@@ -528,6 +552,7 @@ async function main() {
   console.log(`  ${activeUserDefs.length} active users, ${pendingDefs.length} pending-approval users`);
   console.log(`  4 departments (with 1 parent/child hierarchy), 5 asset categories`);
   console.log(`  ${assets.length} assets (26 individually-allocatable + 5 bookable)`);
+  console.log(`  1 asset kit ("New Hire Kit", ${newHireKitAssetIdxs.length} assets)`);
   console.log(`  ${activeAllocationDefs.length} active + ${returnedAllocationDefs.length} returned allocations, 3 transfer requests`);
   console.log(`  ${bookingDefs.length} bookings, 7 maintenance requests, 2 audit cycles (1 closed + 1 in progress)`);
   console.log(`  8 activity log entries`);
