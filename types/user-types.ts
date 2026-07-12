@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const UserSchema = z.object({
-  id: z.uuid().optional(),
+  id: z.string().cuid().optional(),
   name: z.string().trim().min(2, 'Name must be at least 2 characters').max(120),
   email: z
     .string()
@@ -9,9 +9,10 @@ export const UserSchema = z.object({
     .toLowerCase()
     .email('Invalid email address')
     .max(254),
-  role: z.enum(['ADMIN', 'USER', 'MODERATOR']).default('USER'),
-  location: z.string().trim().max(120).optional().nullable(),
-  gender: z.string().trim().max(40).optional().nullable(),
+  role: z.enum(['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD', 'EMPLOYEE']).default('EMPLOYEE'),
+  status: z.enum(['PENDING_APPROVAL', 'ACTIVE', 'INACTIVE']).default('PENDING_APPROVAL'),
+  orgId: z.string().cuid().optional(),
+  departmentId: z.string().cuid().optional().nullable(),
   createdAt: z.union([z.string(), z.date()]).optional(),
   updatedAt: z.union([z.string(), z.date()]).optional(),
 });
@@ -27,7 +28,7 @@ export const UserWriteSchema = UserSchema.omit({
 export type UserWriteInput = z.infer<typeof UserWriteSchema>;
 
 export const UserIdSchema = z.object({
-  id: z.uuid('Invalid user identifier'),
+  id: z.string().cuid('Invalid user identifier'),
 });
 
 export interface ApiResponse<T> {

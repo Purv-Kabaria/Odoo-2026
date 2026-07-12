@@ -1,94 +1,62 @@
-import { Activity, BarChart3, Boxes, Building, Building2, ClipboardCheck, Database, Gauge, Package, ShieldCheck, UserCircle, Users } from "lucide-react";
-import type { UserRole } from "@prisma/client";
+import { Activity, Building2, Database, Gauge, Package, ShieldCheck, UserCircle, Users } from "lucide-react";
+import type { Role } from "@prisma/client";
 
 export type NavigationLink = {
   title: string;
   href: string;
   icon: typeof Gauge;
-  roles: UserRole[];
+  roles: Role[];
 };
 
 export const navigationLinks: NavigationLink[] = [
   {
-    title: "Admin",
-    href: "/admin",
+    title: "Dashboard",
+    href: "/dashboard",
     icon: Gauge,
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
   },
   {
-    title: "Moderator",
-    href: "/moderator",
+    title: "Assets",
+    href: "/assets",
+    icon: Package,
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
+  },
+  {
+    title: "Departments",
+    href: "/departments",
+    icon: Building2,
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD"],
+  },
+  {
+    title: "Maintenance",
+    href: "/maintenance",
     icon: ShieldCheck,
-    roles: ["ADMIN", "MODERATOR"],
+    roles: ["ADMIN", "ASSET_MANAGER"],
   },
   {
     title: "Account",
     href: "/account",
     icon: UserCircle,
-    roles: ["ADMIN", "MODERATOR", "USER"],
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
   },
   {
     title: "Activity",
     href: "/activity",
     icon: Activity,
-    roles: ["ADMIN", "MODERATOR", "USER"],
-  },
-  {
-    title: "Storage",
-    href: "/storage",
-    icon: Database,
-    roles: ["ADMIN", "MODERATOR", "USER"],
+    roles: ["ADMIN", "ASSET_MANAGER"],
   },
   {
     title: "Users",
     href: "/users",
     icon: Users,
-    roles: ["ADMIN", "MODERATOR"],
-  },
-  {
-    title: "Products",
-    href: "/products",
-    icon: Package,
-    roles: ["ADMIN", "MODERATOR"],
-  },
-  {
-    title: "Organizations",
-    href: "/organizations",
-    icon: Building2,
-    roles: ["ADMIN", "MODERATOR"],
-  },
-  {
-    title: "Departments",
-    href: "/departments",
-    icon: Building,
-    roles: ["ADMIN", "MODERATOR", "USER"],
-  },
-  {
-    title: "Assets",
-    href: "/assets",
-    icon: Boxes,
-    roles: ["ADMIN", "MODERATOR", "USER"],
-  },
-  {
-    title: "Audit",
-    href: "/audit",
-    icon: ClipboardCheck,
-    roles: ["ADMIN", "MODERATOR", "USER"],
-  },
-  {
-    title: "Reports",
-    href: "/reports",
-    icon: BarChart3,
-    roles: ["ADMIN", "MODERATOR"],
+    roles: ["ADMIN", "ASSET_MANAGER"],
   },
 ];
 
-export function navigationLinksForRole(role: UserRole): NavigationLink[] {
+export function navigationLinksForRole(role: Role): NavigationLink[] {
   return navigationLinks.filter((link) => link.roles.includes(role));
 }
 
-export function dashboardHrefForRole(role: UserRole): string {
-  if (role === "ADMIN") return "/admin";
-  if (role === "MODERATOR") return "/moderator";
-  return "/account";
+export function dashboardHrefForRole(role: Role): string {
+  return "/dashboard";
 }
