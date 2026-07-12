@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { readApiResponse } from "@/lib/api-client";
 import { formatRelativeTime } from "@/lib/date-format";
-import { CATEGORY_DOT_CLASS, type NotificationView } from "@/lib/notification-display";
+import { dotClassForType, type NotificationView } from "@/lib/notification-display";
 
 const RECENT_LIMIT = 8;
 
@@ -65,15 +65,15 @@ export function NotificationBell() {
 
   const markOneRead = async (id: string) => {
     const target = recent.find((item) => item.id === id);
-    if (!target || target.readAt) return;
+    if (!target || target.isRead) return;
 
     setRecent((current) =>
-      current.map((item) => (item.id === id ? { ...item, readAt: new Date().toISOString() } : item)),
+      current.map((item) => (item.id === id ? { ...item, isRead: true } : item)),
     );
     setUnreadCount((current) => Math.max(0, current - 1));
 
     try {
-      await fetch(`/api/notifications/${id}`, { method: "PATCH" });
+      await fetch(`/api/notifications/${id}/read`, { method: "POST" });
     } catch {
       // Best-effort — the panel/next SSE refresh will reconcile state.
     }
@@ -129,7 +129,7 @@ export function NotificationBell() {
             >
               <span
                 className={`mt-1.5 size-1.5 shrink-0 rounded-full ${
-                  notification.readAt ? "bg-transparent" : CATEGORY_DOT_CLASS[notification.category]
+                  notification.isRead ? "bg-transparent" : dotClassForType(notification.type)
                 }`}
               />
               <div className="min-w-0 flex-1">
