@@ -13,7 +13,7 @@ import type { Prisma, Role } from "@prisma/client";
 
 type ActivityEvent = {
   id: string;
-  action: ActivityAction;
+  action: string;
   entityType: string;
   entityId: string | null;
   summary: string;
@@ -34,11 +34,11 @@ type ActivityResponse = {
 
 const POLL_INTERVAL_MS = 15000;
 
-function actionLabel(action: ActivityAction): string {
+function actionLabel(action: string): string {
   return action
     .toLowerCase()
     .split("_")
-    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .map((part: string) => part[0]?.toUpperCase() + part.slice(1))
     .join(" ");
 }
 

@@ -10,52 +10,46 @@ export type NavigationLink = {
 
 export const navigationLinks: NavigationLink[] = [
   {
-    title: "Admin",
-    href: "/admin",
+    title: "Dashboard",
+    href: "/dashboard",
     icon: Gauge,
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
   },
   {
-    title: "Moderator",
-    href: "/moderator",
+    title: "Assets",
+    href: "/assets",
+    icon: Package,
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
+  },
+  {
+    title: "Departments",
+    href: "/departments",
+    icon: Building2,
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD"],
+  },
+  {
+    title: "Maintenance",
+    href: "/maintenance",
     icon: ShieldCheck,
-    roles: ["ADMIN", "MODERATOR"],
+    roles: ["ADMIN", "ASSET_MANAGER"],
   },
   {
     title: "Account",
     href: "/account",
     icon: UserCircle,
-    roles: ["ADMIN", "MODERATOR", "USER"],
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
   },
   {
     title: "Activity",
     href: "/activity",
     icon: Activity,
-    roles: ["ADMIN", "MODERATOR", "USER"],
-  },
-  {
-    title: "Storage",
-    href: "/storage",
-    icon: Database,
-    roles: ["ADMIN", "MODERATOR", "USER"],
+    roles: ["ADMIN", "ASSET_MANAGER"],
   },
   {
     title: "Users",
     href: "/users",
     icon: Users,
-    roles: ["ADMIN", "MODERATOR"],
-  },
-  {
-    title: "Products",
-    href: "/products",
-    icon: Package,
-    roles: ["ADMIN", "MODERATOR"],
-  },
-  {
-    title: "Organizations",
-    href: "/organizations",
-    icon: Building2,
-    roles: ["ADMIN", "MODERATOR"],
+    roles: ["ADMIN", "ASSET_MANAGER"],
   },
 ];
 
@@ -64,7 +58,5 @@ export function navigationLinksForRole(role: Role): NavigationLink[] {
 }
 
 export function dashboardHrefForRole(role: Role): string {
-  if (role === "ADMIN") return "/admin";
-  if (role === "MODERATOR") return "/moderator";
-  return "/account";
+  return "/dashboard";
 }

@@ -25,6 +25,7 @@ type RecordActivityEventInput = {
   actorId?: string | null;
   orgId: string;
   summary?: string;
+  requestId?: string;
   metadata?: Prisma.InputJsonValue;
 };
 
