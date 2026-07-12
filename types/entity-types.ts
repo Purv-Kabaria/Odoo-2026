@@ -48,9 +48,9 @@ export type OrganizationWriteInput = z.infer<typeof OrganizationWriteSchema>;
 export const DepartmentSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(2).max(140),
-  headId: z.string().uuid().optional().nullable(),
-  parentDepartmentId: z.string().uuid().optional().nullable(),
-  status: z.enum(['PENDING_APPROVAL', 'ACTIVE', 'INACTIVE']).optional(),
+  headId: z.string().uuid().nullable().optional(),
+  parentDepartmentId: z.string().uuid().nullable().optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).default('ACTIVE'),
   createdAt: z.union([z.string(), z.date()]).optional(),
   updatedAt: z.union([z.string(), z.date()]).optional(),
 });
