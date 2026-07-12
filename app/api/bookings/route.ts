@@ -54,8 +54,19 @@ export async function GET(req: Request) {
       return Api.ok(bookings.map((b) => ({ ...b, checkInStatus: deriveCheckInStatus(b) })));
     }
 
+    // Include bookings auto-cancelled for a missed check-in in the last hour
+    // so the "Missed" badge is actually visible before the row ages out —
+    // a booking the sweep never touched (checkInGraceExtended still false)
+    // was cancelled manually and drops off the list as before.
+    const recentMissedCutoff = new Date(Date.now() - 60 * 60 * 1000);
     const bookings = await prisma.booking.findMany({
-      where: { bookedById: user.id, status: { in: ["UPCOMING", "ONGOING"] } },
+      where: {
+        bookedById: user.id,
+        OR: [
+          { status: { in: ["UPCOMING", "ONGOING"] } },
+          { status: "CANCELLED", checkInGraceExtended: true, updatedAt: { gte: recentMissedCutoff } },
+        ],
+      },
       orderBy: { startTime: "asc" },
       take: 50,
       include: { asset: { select: { id: true, assetTag: true, name: true } } },
