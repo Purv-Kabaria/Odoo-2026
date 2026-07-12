@@ -1,4 +1,4 @@
-import { Activity, BarChart3, Boxes, Building, Building2, ClipboardCheck, Database, Gauge, Package, ShieldCheck, UserCircle, Users } from "lucide-react";
+import { Activity, BarChart3, Bell, Boxes, Building, Building2, ClipboardCheck, Database, Gauge, Package, ShieldCheck, UserCircle, Users } from "lucide-react";
 import type { UserRole } from "@prisma/client";
 
 export type NavigationLink = {
@@ -80,6 +80,12 @@ export const navigationLinks: NavigationLink[] = [
     href: "/reports",
     icon: BarChart3,
     roles: ["ADMIN", "MODERATOR"],
+  },
+  {
+    title: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+    roles: ["ADMIN", "MODERATOR", "USER"],
   },
 ];
 
