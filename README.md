@@ -126,22 +126,17 @@ docker compose --profile full up -d --build
 | `pnpm db:generate` | Regenerates Prisma Client. | After schema changes or fresh install. |
 | `pnpm db:reset` | Resets DB from migration history. Destructive. | Local rebuild only. |
 | `pnpm db:reset:populate` | Resets DB, seeds data, indexes search. Destructive. | Clean local demo state. |
-| `pnpm db:populate` | Generates users, seeds template data, indexes search. | Refresh demo data without migration reset. |
+| `pnpm db:populate` | Generates users, seeds template + AssetFlow data, indexes search. | Refresh demo data without migration reset. |
 | `pnpm users:generate` | Writes `scripts/users-data.json`. | Regenerate demo users. |
 | `pnpm users:seed` | Seeds users from `scripts/users-data.json`. | User-only seed. |
 | `pnpm users:index` | Rebuilds Meilisearch indexes. | Search refresh after direct DB edits. |
 | `pnpm users:populate` | Generates and seeds users. | User-only refresh. |
 | `pnpm template:seed` | Seeds users, products, and organizations. | Populate all template models. |
-| `pnpm search:index` | Configures and indexes all Meilisearch indexes. | After imports, seeds, or migrations. |
-| `pnpm template:refresh` | Seeds template data and indexes search. | Fast non-destructive refresh. |
+| `pnpm assetflow:seed` | Seeds departments, assets, and audit cycles (with items/discrepancies). | Populate AssetFlow domain data. |
+| `pnpm search:index` | Configures and indexes all Meilisearch indexes (users, products, organizations, assets). | After imports, seeds, or migrations. |
+| `pnpm template:refresh` | Seeds template + AssetFlow data and indexes search. | Fast non-destructive refresh. |
 | `pnpm db:wipe` | Wipes all DB tables. Destructive. | Local cleanup. |
 | `pnpm db:wipe:table` | Wipes one DB table. Destructive. | Targeted local cleanup. |
-
-## Scheduled Jobs
-
-`GET /api/cron/bookings` runs the booking check-in state machine (UPCOMING → ONGOING → COMPLETED lifecycle, the 15-minute check-in deadline, the one-time 5-minute grace extension, and auto-cancel on a missed check-in). It requires an `Authorization: Bearer ${CRON_SECRET}` header and returns `503` if `CRON_SECRET` isn't set — it's fail-closed by default.
-
-`vercel.json` wires this up on a `*/5 * * * *` schedule via Vercel Cron Jobs, which automatically attaches the correct `Authorization` header once `CRON_SECRET` is set in the project's environment variables. On plans without frequent native Cron (e.g. Vercel Hobby, limited to daily schedules), point an external scheduler such as Upstash QStash at the same URL with the same header instead.
 
 ## App Surfaces
 
@@ -152,6 +147,9 @@ docker compose --profile full up -d --build
 - `/users`: configurable users table.
 - `/products`: configurable products table.
 - `/organizations`: configurable organizations table.
+- `/departments`: configurable departments table (nestable via parent department).
+- `/assets`: configurable assets table (AssetFlow asset registry).
+- `/audit`: audit cycle workflow — scope, assign auditors, checklist, auto-generated discrepancy report.
 - `/storage`: signed-in object upload, download, and delete.
 - `/api/llm/chat`: protected OpenAI-compatible chat-completion proxy.
 
