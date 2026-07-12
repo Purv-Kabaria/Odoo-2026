@@ -1,0 +1,67 @@
+import type { Metadata } from "next";
+import { cookies } from "next/headers";
+import { Geist, Merriweather, JetBrains_Mono } from "next/font/google";
+import "./globals.css";
+import { cn } from "@/lib/utils";
+import { Navbar } from "@/components/layout/navbar";
+import { Footer } from "@/components/layout/footer";
+import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
+import { getCurrentUser } from "@/lib/auth";
+
+const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
+
+const fontSerif = Merriweather({
+  subsets: ["latin"],
+  variable: "--font-serif",
+});
+
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+});
+
+export const metadata: Metadata = {
+  title: {
+    default: "Odoo Boilerplate",
+    template: "%s | Odoo Boilerplate",
+  },
+  description: "A fast, secure Next.js 16 boilerplate with users, products, and organization routes.",
+};
+
+type Theme = "light" | "dark";
+
+function getThemeCookie(value: string | undefined): Theme {
+  return value === "dark" ? "dark" : "light";
+}
+
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const cookieStore = await cookies();
+  const initialTheme = getThemeCookie(cookieStore.get("odoo_theme")?.value);
+  const user = await getCurrentUser();
+
+  return (
+    <html
+      lang="en"
+      className={cn("font-sans", geist.variable, initialTheme === "dark" && "dark")}
+      style={{ colorScheme: initialTheme }}
+    >
+      <body
+        className={`${geist.variable} ${fontSerif.variable} ${fontMono.variable} antialiased flex min-h-screen flex-col text-sm`}
+      >
+        <ThemeProvider initialTheme={initialTheme}>
+          <Navbar user={user} />
+          <div className="flex-1">
+            {children}
+          </div>
+          <Footer />
+          <Toaster />
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}
