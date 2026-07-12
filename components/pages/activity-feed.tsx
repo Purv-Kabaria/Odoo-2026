@@ -15,10 +15,8 @@ type ActivityEvent = {
   id: string;
   action: string;
   entityType: string;
-  entityId: string | null;
-  summary: string;
+  entityId: string;
   metadata: Prisma.JsonValue | null;
-  requestId: string | null;
   createdAt: string;
   actor: {
     id: string;
@@ -34,11 +32,11 @@ type ActivityResponse = {
 
 const POLL_INTERVAL_MS = 15000;
 
+/** `action` is a free-text "domain.verb" string (e.g. "asset.allocated") — title-case it for display. */
 function actionLabel(action: string): string {
   return action
-    .toLowerCase()
-    .split("_")
-    .map((part: string) => part[0]?.toUpperCase() + part.slice(1))
+    .split(/[._]/)
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
     .join(" ");
 }
 
@@ -166,7 +164,9 @@ export function ActivityFeed() {
                     {event.entityId ? `:${event.entityId.slice(0, 8)}` : ""}
                   </span>
                 </div>
-                <p className="text-sm font-medium text-foreground">{event.summary}</p>
+                <p className="text-sm font-medium text-foreground">
+                  {actionLabel(event.action)} — {event.entityType}
+                </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {event.actor ? `${event.actor.name} (${event.actor.role.toLowerCase()})` : "System"}
                 </p>

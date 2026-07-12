@@ -12,17 +12,10 @@ export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
 
   try {
-    const rateLimit = await checkRateLimit(
-      `login:${getClientIp(req)}`,
-      LOGIN_RATE_LIMIT,
-      LOGIN_RATE_WINDOW_MS,
-    );
+    const rateLimit = await checkRateLimit(`login:${getClientIp(req)}`, LOGIN_RATE_LIMIT, LOGIN_RATE_WINDOW_MS);
     if (!rateLimit.success) {
       logger.warn("auth.login.rate_limited", { requestId });
-      return Api.tooManyRequests(
-        "Too many login attempts. Try again shortly.",
-        (rateLimit.resetAt - Date.now()) / 1000,
-      );
+      return Api.tooManyRequests("Too many login attempts. Try again shortly.", (rateLimit.resetAt - Date.now()) / 1000);
     }
 
     const body = await req.json().catch(() => null);
@@ -33,40 +26,12 @@ export async function POST(req: Request) {
     }
 
     const { email, password, rememberMe } = validation.data;
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        orgId: true,
-        departmentId: true,
-        passwordHash: true,
-      },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
-    // Check credentials first — don't leak whether the email exists via
-    // status-specific messages if the password is wrong.
-    if (!user?.passwordHash || !verifyPassword(password, user.passwordHash)) {
+    if (!user || !verifyPassword(password, user)) {
       return Api.unauthorized("Invalid email or password");
     }
 
-    // Status-specific rejection messages (only reached after valid credentials).
-    if (user.status === "PENDING_APPROVAL") {
-      return Api.unauthorized(
-        "Your account is pending administrator approval. Please check back later.",
-      );
-    }
-
-    if (user.status === "INACTIVE") {
-      return Api.unauthorized(
-        "Your account has been deactivated. Contact an administrator.",
-      );
-    }
-
-    // Only ACTIVE users get a session.
     const session = await createSession(user.id, rememberMe);
     logger.info("auth.login", { requestId, userId: user.id });
 
@@ -76,9 +41,6 @@ export async function POST(req: Request) {
         name: user.name,
         email: user.email,
         role: user.role,
-        status: user.status,
-        orgId: user.orgId,
-        departmentId: user.departmentId,
       },
     });
     setSessionCookie(response, session.token, session.expiresAt);

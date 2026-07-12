@@ -5,11 +5,6 @@ import { createHash, pbkdf2Sync, randomBytes, timingSafeEqual } from "crypto";
  * imports beyond Node's `crypto` so it can be unit-tested in isolation and
  * imported anywhere (scripts, tests, route handlers) without pulling in
  * Next.js request context or Prisma.
- *
- * Passwords are stored as a single composite string:
- *   pbkdf2:<iterations>:<salt_hex>:<hash_hex>
- * This keeps the User model simple (one `passwordHash` column) while
- * preserving all parameters needed for verification.
  */
 
 const PASSWORD_ITERATIONS = 210_000;
@@ -17,50 +12,38 @@ const PASSWORD_KEY_LENGTH = 32;
 const PASSWORD_DIGEST = "sha256";
 
 /**
- * Hash a plaintext password into a composite string.
- * Format: `pbkdf2:<iterations>:<salt_hex>:<hash_hex>`
+ * `User.passwordHash` is a single column (no separate salt/iterations
+ * columns on the AssetFlow schema), so the per-user salt and iteration
+ * count are self-encoded into the stored string, `pbkdf2$<iterations>$<saltHex>$<hashHex>`
+ * — same pattern bcrypt/argon2 use natively. Keeps the per-user random
+ * salt and a bump-able iteration count without needing extra columns.
  */
-export function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString("hex");
+export function hashPassword(password: string, salt = randomBytes(16).toString("hex")) {
   const hash = pbkdf2Sync(
     password,
     salt,
     PASSWORD_ITERATIONS,
     PASSWORD_KEY_LENGTH,
-    PASSWORD_DIGEST,
+    PASSWORD_DIGEST
   ).toString("hex");
 
-  return `pbkdf2:${PASSWORD_ITERATIONS}:${salt}:${hash}`;
+  return {
+    passwordHash: `pbkdf2$${PASSWORD_ITERATIONS}$${salt}$${hash}`,
+  };
 }
 
-/**
- * Verify a plaintext password against a stored composite hash.
- * Timing-safe comparison prevents timing attacks.
- */
-export function verifyPassword(password: string, storedHash: string): boolean {
-  const parts = storedHash.split(":");
-  if (parts.length !== 4 || parts[0] !== "pbkdf2") {
-    return false;
-  }
+export function verifyPassword(password: string, user: { passwordHash: string }) {
+  const parts = user.passwordHash.split("$");
+  if (parts.length !== 4 || parts[0] !== "pbkdf2") return false;
 
-  const iterations = parseInt(parts[1], 10);
+  const iterations = Number(parts[1]);
   const salt = parts[2];
-  const expectedHash = parts[3];
+  const storedHash = Buffer.from(parts[3], "hex");
+  if (!Number.isInteger(iterations) || iterations < 100_000) return false;
 
-  if (!iterations || iterations < 100_000 || !salt || !expectedHash) {
-    return false;
-  }
+  const hash = pbkdf2Sync(password, salt, iterations, PASSWORD_KEY_LENGTH, PASSWORD_DIGEST);
 
-  const hash = pbkdf2Sync(
-    password,
-    salt,
-    iterations,
-    PASSWORD_KEY_LENGTH,
-    PASSWORD_DIGEST,
-  );
-
-  const storedBuffer = Buffer.from(expectedHash, "hex");
-  return storedBuffer.length === hash.length && timingSafeEqual(storedBuffer, hash);
+  return storedHash.length === hash.length && timingSafeEqual(storedHash, hash);
 }
 
 export function hashToken(token: string) {
