@@ -53,8 +53,8 @@ export async function POST(req: Request) {
       select: { passwordHash: true },
     });
     if (
-      !currentUser ||
-      !verifyPassword(validation.data.currentPassword, currentUser)
+      !currentUser?.passwordHash ||
+      !verifyPassword(validation.data.currentPassword, { passwordHash: currentUser.passwordHash })
     ) {
       return Api.badRequest('Current password is incorrect');
     }

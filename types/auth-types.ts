@@ -93,11 +93,22 @@ export const AccountProfileSchema = z.object({
   name: z.string().trim().min(2, 'Name must be at least 2 characters').max(120),
 });
 
+// Invited role never includes ADMIN — admin is granted only by promoting an
+// existing user from the directory (AGENTS.md §6 / problem statement Screen 3
+// Tab C), never at invite time.
+export const InviteUserSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Enter a valid email address').max(254),
+  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(120),
+  role: z.enum(['ASSET_MANAGER', 'DEPARTMENT_HEAD', 'EMPLOYEE']).default('EMPLOYEE'),
+  departmentId: z.string().cuid().optional().nullable(),
+});
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type SignupInput = z.infer<typeof SignupSchema>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
 export type ChangePasswordInput = z.infer<typeof ChangePasswordSchema>;
 export type AccountProfileInput = z.infer<typeof AccountProfileSchema>;
+export type InviteUserInput = z.infer<typeof InviteUserSchema>;
 
 /** Minimal, client-safe view of the signed-in user (never includes credentials). */
 export type NavUser = {
@@ -106,6 +117,6 @@ export type NavUser = {
   name: string;
   email: string;
   role: 'ADMIN' | 'ASSET_MANAGER' | 'DEPARTMENT_HEAD' | 'EMPLOYEE';
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'PENDING_APPROVAL' | 'ACTIVE' | 'INACTIVE';
   departmentId: string | null;
 };

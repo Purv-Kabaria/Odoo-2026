@@ -56,9 +56,19 @@ export async function POST(req: Request) {
 
       if (consumed.count !== 1) return { consumed: false };
 
+      // Setting a password IS accepting an invite: a still-pending user
+      // (admin-invited, no password) is promoted to Active in the same
+      // step. Password must be written first — the DB check constraint
+      // (passwordHash IS NOT NULL OR status = 'PENDING_APPROVAL') is
+      // evaluated per-statement, not deferred, so flipping status to
+      // Active before passwordHash is set would violate it.
       await tx.user.update({
         where: { id: resetToken.userId },
         data: { passwordHash },
+      });
+      await tx.user.updateMany({
+        where: { id: resetToken.userId, status: 'PENDING_APPROVAL' },
+        data: { status: 'ACTIVE' },
       });
       await tx.authSession.deleteMany({
         where: { userId: resetToken.userId },
