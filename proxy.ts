@@ -37,5 +37,6 @@ export const config = {
     "/maintenance/:path*",
     "/audit/:path*",
     "/reports/:path*",
+    "/notifications/:path*",
   ],
 };
