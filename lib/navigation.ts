@@ -1,11 +1,11 @@
-import { Activity, Boxes, Building, Building2, ClipboardCheck, Database, Gauge, Package, ShieldCheck, UserCircle, Users } from "lucide-react";
-import type { UserRole } from "@prisma/client";
+import { Activity, Building2, Database, Gauge, Package, ShieldCheck, UserCircle, Users } from "lucide-react";
+import type { Role } from "@prisma/client";
 
 export type NavigationLink = {
   title: string;
   href: string;
   icon: typeof Gauge;
-  roles: UserRole[];
+  roles: Role[];
 };
 
 export const navigationLinks: NavigationLink[] = [
@@ -57,31 +57,13 @@ export const navigationLinks: NavigationLink[] = [
     icon: Building2,
     roles: ["ADMIN", "MODERATOR"],
   },
-  {
-    title: "Departments",
-    href: "/departments",
-    icon: Building,
-    roles: ["ADMIN", "MODERATOR", "USER"],
-  },
-  {
-    title: "Assets",
-    href: "/assets",
-    icon: Boxes,
-    roles: ["ADMIN", "MODERATOR", "USER"],
-  },
-  {
-    title: "Audit",
-    href: "/audit",
-    icon: ClipboardCheck,
-    roles: ["ADMIN", "MODERATOR", "USER"],
-  },
 ];
 
-export function navigationLinksForRole(role: UserRole): NavigationLink[] {
+export function navigationLinksForRole(role: Role): NavigationLink[] {
   return navigationLinks.filter((link) => link.roles.includes(role));
 }
 
-export function dashboardHrefForRole(role: UserRole): string {
+export function dashboardHrefForRole(role: Role): string {
   if (role === "ADMIN") return "/admin";
   if (role === "MODERATOR") return "/moderator";
   return "/account";

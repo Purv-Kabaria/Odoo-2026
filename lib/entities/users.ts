@@ -72,12 +72,12 @@ export const usersEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'MODERATOR'],
-    create: ['ADMIN', 'MODERATOR'],
-    update: ['ADMIN', 'MODERATOR'],
+    read: ['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD'],
+    create: ['ADMIN', 'ASSET_MANAGER'],
+    update: ['ADMIN', 'ASSET_MANAGER'],
     delete: ['ADMIN'],
   },
-  // Any signed-in Moderator can update a user's profile fields, but only an
+  // Any signed-in Asset Manager can update a user's profile fields, but only an
   // Admin can promote/demote a role — prevents a Moderator from granting
   // themselves (or anyone) Admin access.
   restrictedFields: {

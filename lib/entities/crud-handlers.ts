@@ -15,7 +15,7 @@ import {
   setJsonCache,
 } from '@/lib/redis-cache';
 import { BulkDeleteSchema, BulkUpdateSchema } from '@/types/entity-types';
-import type { UserRole } from '@prisma/client';
+import type { Role } from '@prisma/client';
 
 import { getDelegate } from './prisma-delegate';
 import type { FilterRuleInput, SortRuleInput } from './query';
@@ -23,7 +23,7 @@ import { buildOrderBy, buildWhere, parseListQuery } from './query';
 import { canPerform } from './types';
 import type { EntityColumn, EntityConfig } from './types';
 
-const EntityIdSchema = z.object({ id: z.uuid('Invalid identifier') });
+const EntityIdSchema = z.object({ id: z.string().cuid('Invalid identifier') });
 
 type EntityListCacheValue = {
   rows: Record<string, unknown>[];
@@ -66,7 +66,7 @@ export function invalidateEntityListCache(config: EntityConfig): Promise<void> {
 
 function entityCacheKey(
   config: EntityConfig,
-  role: UserRole,
+  role: Role,
   input: {
     page: number;
     limit: number;

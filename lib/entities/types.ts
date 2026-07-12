@@ -1,4 +1,4 @@
-import type { UserRole } from '@prisma/client';
+import type { Role } from '@prisma/client';
 import type { z } from 'zod';
 
 /**
@@ -41,16 +41,16 @@ export type EntityColumn = {
 
 export type EntityAction = 'read' | 'create' | 'update' | 'delete';
 
-export type EntityPermissions = Record<EntityAction, UserRole[]>;
+export type EntityPermissions = Record<EntityAction, Role[]>;
 
 /**
  * Extra guard for fields within an entity that need a stricter role than
- * the entity's general `update` permission — e.g. any signed-in Moderator
+ * the entity's general `update` permission — e.g. any signed-in Asset Manager
  * can update a user's name, but only an Admin can change their role.
  */
 export type RestrictedFields = {
   fields: string[];
-  allowedRoles: UserRole[];
+  allowedRoles: Role[];
 };
 
 export type EntityConfig = {
@@ -58,7 +58,7 @@ export type EntityConfig = {
   key: string;
   label: string;
   singularLabel: string;
-  prismaModel: 'user' | 'product' | 'organization' | 'asset' | 'department';
+  prismaModel: 'user' | 'organization' | 'department' | 'asset' | 'assetCategory';
   columns: EntityColumn[];
   /** Validates both create and update payloads (id/createdAt/updatedAt omitted). */
   schema: z.ZodTypeAny;
@@ -72,7 +72,7 @@ export type EntityConfig = {
 export function canPerform(
   config: EntityConfig,
   action: EntityAction,
-  role: UserRole,
+  role: Role,
 ): boolean {
   return config.permissions[action].includes(role);
 }
