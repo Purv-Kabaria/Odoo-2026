@@ -1,6 +1,6 @@
 # AssetFlow
 
-**AssetFlow** is an enterprise asset-management system: register and track physical assets, allocate them to employees or departments, resolve allocation conflicts through transfer requests, book shared resources on a conflict-free calendar, run an AI-assisted maintenance workflow, audit inventory against expected holders, and report on utilization and spend — all behind real session auth and role-based access control.
+**AssetFlow** is an enterprise asset-management system: register and track physical assets (with QR-code lookup), allocate them individually or in bulk kits to employees or departments, resolve allocation conflicts through transfer requests, book shared resources on a conflict-free calendar with enforced check-in, run an AI-assisted maintenance workflow, audit inventory against expected holders, and report on utilization and spend — all behind real session auth and role-based access control.
 
 Built on Next.js 16, Prisma 6, and PostgreSQL, with Redis, Meilisearch, and S3-compatible object storage baked in as optional accelerators (never hard dependencies). There is intentionally no CI/CD, no test runner, no Husky, no lint-staged, and no commitlint — this project is optimized for fast local iteration: run the app, click through it, and use `pnpm lint`, `pnpm typecheck`, and `pnpm build` as your manual quality gate before committing.
 
@@ -37,25 +37,21 @@ Built on Next.js 16, Prisma 6, and PostgreSQL, with Redis, Meilisearch, and S3-c
 | --- | --- |
 | **Auth** | Self-signup goes to `PENDING_APPROVAL` until an Admin approves it; an admin-issued invite auto-activates on password set (inviting a specific person *is* the vetting step). Session cookies are opaque random tokens, hashed at rest, `httpOnly`. |
 | **Admin / Users** | Manage users, roles, and org/department membership; approve pending signups; invite new users by email (Nodemailer, console-mock if SMTP isn't configured). |
-| **Asset Directory** | Register assets (auto-generated `AF-####` tags, race-safe under concurrent registration), category-specific custom fields, photo upload, full-text + fuzzy search, filter by category/status/department/location. |
-| **Allocation & Transfer** | Allocate an asset to an employee or department; attempting to double-allocate surfaces a conflict banner naming the current holder, with a one-click transfer request instead of a raw error. Transfers are approved by a Department Head (scoped to their own department) or an Asset Manager/Admin. |
-| **Resource Booking** | Book shared/bookable assets (meeting rooms, vehicles, equipment) on a day timeline with a live conflict preview; overlap is enforced by a Postgres GiST exclusion constraint, not just an app-layer check. |
+| **Asset Directory** | Register assets (auto-generated `AF-####` tags, race-safe under concurrent registration), category-specific custom fields, photo upload, full-text + fuzzy search, filter by category/status/department/location. A camera-based QR scanner (`html5-qrcode`, with proper permission handling) populates the search bar directly from a scanned code instead of typing a tag/serial by hand. |
+| **Asset Kits** | Bundle multiple assets into a reusable kit and allocate the whole kit to an employee or department in one action. Every asset in the kit is validated as available before anything commits — if even one is already held, the whole operation is blocked and the conflicting asset is named, exactly like the single-asset conflict flow. Each asset in the kit still gets its own individual `Allocation` row and history, linked back to the batch `KitAllocation`. |
+| **Allocation & Transfer** | Allocate an asset (or a kit) to an employee or department; attempting to double-allocate surfaces a conflict banner naming the current holder, with a one-click transfer request instead of a raw error. Transfers are approved by a Department Head (scoped to their own department) or an Asset Manager/Admin. |
+| **Resource Booking** | Book shared/bookable assets (meeting rooms, vehicles, equipment) on a day timeline with a live conflict preview; overlap is enforced by a Postgres GiST exclusion constraint, not just an app-layer check. Every booking carries a 15-minute check-in deadline from its start time — a CRON sweep nudges the booker at the 10–15 minute mark, then (if still not checked in) extends a one-time 5-minute grace period with a second notification, and auto-cancels the booking to free the resource if that grace period also lapses. |
 | **Maintenance** | Drag-and-drop Kanban (Pending → Approved → Technician Assigned → In Progress → Resolved, plus a computed Retired column) built with `dnd-kit`. Resolving a request fires a non-blocking LLM call that evaluates acquisition cost, maintenance history, and the issue description, and flags assets worth retiring; a manager-only "Verify & Retire" action closes the loop by globally retiring the asset. |
 | **Audit Cycles** | Scope an audit to a department or location, assign auditors, verify assets against expected holders, and auto-raise a maintenance request when an item is found damaged. |
 | **Reports** | Org-wide KPIs, utilization by department, maintenance frequency, most-used/idle/near-retirement assets, spend by category, and a booking heatmap — Redis-cached with a short TTL, CSV export per section, tables compact-by-default with a Vercel-dashboard-style expand toggle per table. |
-| **Notifications** | Per-user notification bell + panel (assignment/approval/booking/alert/info categories), pushed live over SSE via Redis pub/sub, backed by a durable Postgres table so nothing's lost if you weren't connected when it fired. |
+| **Notifications** | Per-user notification bell + panel (alerts/approvals/bookings categories, keyset-paginated), pushed live over SSE via Redis pub/sub, backed by a durable Postgres table so nothing's lost if you weren't connected when it fired. A set of CRON sweeps (`node-cron`, registered once per server process via `instrumentation.ts`) generate time-based notifications no user action would otherwise trigger: booking-ending-soon reminders, booking check-in nudges/grace-period/auto-cancel, and overdue-return alerts. |
 | **Voice input** | Native Web Speech API dictation (mic button, live transcription, append-mode, graceful degradation with a toast when unsupported or denied) — built as one reusable hook + button, wired into the maintenance issue description and the asset-return condition notes. |
 
 Role model: `ADMIN` (everything) > `ASSET_MANAGER` (assets/allocations/bookings/maintenance/reports, org-wide) > `DEPARTMENT_HEAD` (approvals scoped to their own department) > `EMPLOYEE` (self-service booking, raising maintenance, viewing their own allocations).
 
-### In progress (teammate branches, not yet merged)
+### In progress (not yet built)
 
-These are part of the product spec and actively being built by other contributors — listed here so the feature set is honestly complete, not because they're live in `main` yet:
-
-- **Asset Kits (bulk allocation)** — reusable kits of multiple assets, allocated as one action; validates every asset is available before committing, blocks the whole operation and names the conflicting asset if not, and records allocation history per individual asset.
-- **QR Code Search & Filtering** — a camera-based QR scanner in the Asset Directory (with proper permission handling) that populates the search bar and filters straight to the matching asset instead of typing a tag/serial by hand. (`feat/qr-code` on the remote — in progress.)
-- **15-Minute Check-In & Auto-Release** — bookings require a check-in within 15 minutes of the start time, with a reminder and a 5-minute grace period, after which an uncompleted check-in auto-cancels the booking and releases the asset.
-- **Ctrl+K Global Search** — a Meilisearch-powered command palette (`Ctrl`/`Cmd`+`K`) searching across assets, employees, departments, and other entities at once, with grouped results and full keyboard navigation.
+- **Ctrl+K Global Search** — a Meilisearch-powered command palette (`Ctrl`/`Cmd`+`K`) searching across assets, employees, departments, and other entities at once, with grouped results and full keyboard navigation. The Shadcn `Command`/`cmdk` primitive is already in the component library; it isn't wired up to a global shortcut or a search endpoint yet.
 
 ## Architecture
 
@@ -99,7 +95,7 @@ flowchart TB
 
 ## Database design
 
-All 20 tables scoped under one multi-tenant root (`Organization`). UUIDv7 primary keys everywhere (sortable-enough, collision-resistant, don't leak sequential volume like an auto-increment int would), stored as native Postgres `uuid` columns rather than `text` for smaller storage and faster index comparisons.
+All 20 tables scoped under one multi-tenant root (`Organization`), including `AssetKit`/`AssetKitItem`/`KitAllocation` for bulk allocation. UUIDv7 primary keys everywhere (sortable-enough, collision-resistant, don't leak sequential volume like an auto-increment int would), stored as native Postgres `uuid` columns rather than `text` for smaller storage and faster index comparisons.
 
 ```mermaid
 erDiagram
@@ -121,6 +117,11 @@ erDiagram
     ASSET ||--o{ BOOKING : "booked via"
     ASSET ||--o{ MAINTENANCE_REQUEST : "serviced via"
     ASSET ||--o{ AUDIT_ITEM : "checked via"
+    ASSET ||--o{ ASSET_KIT_ITEM : "bundled via"
+
+    ASSET_KIT ||--o{ ASSET_KIT_ITEM : contains
+    ASSET_KIT ||--o{ KIT_ALLOCATION : "allocated via"
+    KIT_ALLOCATION ||--o{ ALLOCATION : "expands into"
 
     USER ||--o{ ALLOCATION : holds
     USER ||--o{ TRANSFER_REQUEST : requests
@@ -168,6 +169,19 @@ erDiagram
         timestamp startTime
         timestamp endTime
         enum status
+        boolean checkedIn
+        timestamp checkInDeadline "startTime + 15m, +5m once on grace"
+    }
+    ASSET_KIT {
+        uuid id PK
+        uuid orgId FK
+        string name
+    }
+    KIT_ALLOCATION {
+        uuid id PK
+        uuid kitId FK
+        uuid toEmployeeId FK "XOR with toDepartmentId"
+        uuid toDepartmentId FK
     }
     MAINTENANCE_REQUEST {
         uuid id PK
@@ -184,12 +198,12 @@ erDiagram
     }
 ```
 
-*(`TransferRequest`, `AuditAssignment`, `DiscrepancyReport`, `Notification`, `ActivityLog`, `AuthSession`, and `PasswordResetToken` exist in the real schema — [`prisma/schema.prisma`](./prisma/schema.prisma) is the full source of truth; this diagram keeps the core relationships readable rather than reproducing all 20 tables.)*
+*(`TransferRequest`, `AuditAssignment`, `DiscrepancyReport`, `Notification`, `ActivityLog`, `AuthSession`, `PasswordResetToken`, and `AssetKitItem` exist in the real schema — [`prisma/schema.prisma`](./prisma/schema.prisma) is the full source of truth; this diagram keeps the core relationships readable rather than reproducing all 20 tables.)*
 
 **Invariants Prisma's schema syntax can't express live in hand-written migration SQL, not just in application code** — the database is the actual enforcement layer, application checks are a fast-path UX nicety on top:
 
-- `Allocation`: a partial unique index (`WHERE status = 'ACTIVE'`) makes double-allocation structurally impossible, not just checked-for.
-- `Allocation`: a `CHECK` constraint enforces "exactly one of `toEmployeeId`/`toDepartmentId`" — never both, never neither.
+- `Allocation`: a partial unique index (`WHERE status = 'ACTIVE'`) makes double-allocation structurally impossible, not just checked-for — kit allocation reuses this exact table and constraint per asset, so a kit can't bypass the guard either.
+- `Allocation` / `KitAllocation`: a `CHECK` constraint enforces "exactly one of `toEmployeeId`/`toDepartmentId`" — never both, never neither — on both the single-asset and kit-batch-header rows.
 - `Booking`: a GiST exclusion constraint (`EXCLUDE USING gist (assetId WITH =, tsrange(startTime, endTime, '[)') WITH &&)`) makes overlapping bookings for the same asset structurally impossible under concurrent writes — an app-layer "check then insert" would have a race window, this doesn't.
 - `User`: a `CHECK` constraint enforces that any non-`PENDING_APPROVAL` user must have a password set.
 - `AuditCycle`: a `CHECK` constraint enforces `endDate >= startDate` and "scope is at most one of department/location."
@@ -262,9 +276,11 @@ Sequential auto-increment IDs leak business volume (a competitor watching `/asse
 - **Search**: Meilisearch for typo-tolerant table search, with a Postgres `pg_trgm` fallback when it's unavailable.
 - **Object storage**: S3-compatible (MinIO locally) for asset photos and documents; metadata and RBAC stay in Postgres.
 - **Drag-and-drop**: `dnd-kit` for the Maintenance Kanban board.
+- **QR scanning**: `html5-qrcode`, camera-based, in the Asset Directory search bar.
 - **Voice input**: native browser `SpeechRecognition`/`webkitSpeechRecognition`, no external dependency.
 - **LLM**: one OpenAI-compatible proxy adapter (`lib/llm.ts`) with timeout/retry/circuit-breaker, used for the maintenance retirement recommendation — never called directly from a component.
 - **Email**: Nodemailer, mock/console-logging mode when SMTP isn't configured.
+- **Scheduled jobs**: `node-cron`, registered once per server process from `instrumentation.ts`, for booking reminders, check-in enforcement, and overdue-return sweeps — no separate worker deployment.
 - **Logging**: structured JSON to stdout, optional Loki push — never a bare `console.log`.
 - **Validation**: Zod is the single source of truth for both runtime validation and inferred TypeScript types across every API boundary.
 
