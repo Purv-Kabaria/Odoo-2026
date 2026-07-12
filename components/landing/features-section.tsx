@@ -64,11 +64,11 @@ export function FeaturesSection() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-100px" }}
               transition={{ duration: 0.5, delay: idx * 0.1 }}
-              className={`group relative overflow-hidden rounded-none border border-border bg-card p-5 hover:border-foreground/30 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer flex flex-col ${feature.className}`}
+              className={`group relative overflow-hidden rounded-xl border border-border bg-card p-5 hover:border-foreground/30 transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer flex flex-col ${feature.className}`}
             >
               <div className="flex flex-col h-full relative z-10">
                 <div className="mb-auto">
-                  <div className="inline-flex items-center justify-center rounded-none bg-background/50 backdrop-blur-md p-3 shadow-sm border border-border/50 mb-6 group-hover:scale-110 transition-transform duration-300 text-foreground">
+                  <div className="inline-flex items-center justify-center rounded-full bg-background/50 backdrop-blur-md p-3 shadow-sm border border-border/50 mb-6 group-hover:scale-110 transition-transform duration-300 text-foreground">
                     <feature.icon className="size-6" />
                   </div>
                   <h3 className="text-lg md:text-xl font-semibold mb-3 tracking-tight">{feature.title}</h3>

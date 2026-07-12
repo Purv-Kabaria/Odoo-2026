@@ -356,7 +356,7 @@ export function EntityDataTable({ config, currentUserRole }: EntityDataTableProp
               variant="ghost"
               size="sm"
               onClick={() => setSearchInput("")}
-              className={`absolute right-0 top-0 h-9 rounded-none px-2.5 cursor-pointer ${tableToolbarTextClass} text-muted-foreground`}
+              className={`absolute right-0 top-0 h-9 px-2.5 cursor-pointer ${tableToolbarTextClass} text-muted-foreground`}
             >
               Clear
             </Button>

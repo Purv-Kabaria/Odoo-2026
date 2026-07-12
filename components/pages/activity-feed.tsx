@@ -128,7 +128,7 @@ export function ActivityFeed() {
           size="sm"
           disabled={isRefreshing}
           onClick={() => void loadActivity({ onlyNew: true })}
-          className="w-full cursor-pointer rounded-none sm:w-auto"
+          className="w-full cursor-pointer sm:w-auto"
         >
           <RefreshCw className={isRefreshing ? "size-4 animate-spin" : "size-4"} />
           Refresh
@@ -138,7 +138,7 @@ export function ActivityFeed() {
       {isLoading ? (
         <div className="grid gap-2">
           {Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton key={index} className="h-20 rounded-none" />
+            <Skeleton key={index} className="h-20" />
           ))}
         </div>
       ) : events.length === 0 ? (
@@ -158,7 +158,7 @@ export function ActivityFeed() {
             >
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary" className="rounded-none">
+                  <Badge variant="secondary">
                     {actionLabel(event.action)}
                   </Badge>
                   <span className="text-xs text-muted-foreground">

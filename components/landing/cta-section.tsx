@@ -16,22 +16,22 @@ export function CTASection() {
           whileInView={{ opacity: 1, scale: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.7, type: "spring", bounce: 0.3 }}
-          className="rounded-none bg-card/90 backdrop-blur-xl border border-border p-8 md:p-16 text-center overflow-hidden relative shadow-xl shadow-foreground/5 w-full flex flex-col items-center justify-center min-h-[65vh] md:min-h-[75vh]"
+          className="rounded-2xl bg-card/90 backdrop-blur-xl border border-border p-8 md:p-16 text-center overflow-hidden relative shadow-xl shadow-foreground/5 w-full flex flex-col items-center justify-center min-h-[65vh] md:min-h-[75vh]"
         >
           {/* Mesmerizing abstract background elements */}
-          <motion.div animate={{ rotate: 360, scale: [1, 1.1, 1] }} transition={{ duration: 15, repeat: Infinity, ease: "linear" }} className="absolute top-0 right-0 -mt-10 -mr-10 w-[15rem] md:w-[25rem] h-[15rem] md:h-[25rem] bg-primary/10 rounded-none blur-3xl pointer-events-none" />
-          <motion.div animate={{ rotate: -360, scale: [1, 1.2, 1] }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute bottom-0 left-0 -mb-10 -ml-10 w-[15rem] md:w-[25rem] h-[15rem] md:h-[25rem] bg-primary/10 rounded-none blur-3xl pointer-events-none" />
-          <motion.div animate={{ y: [-15, 15, -15] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-primary/5 rounded-none blur-2xl pointer-events-none" />
+          <motion.div animate={{ rotate: 360, scale: [1, 1.1, 1] }} transition={{ duration: 15, repeat: Infinity, ease: "linear" }} className="absolute top-0 right-0 -mt-10 -mr-10 w-[15rem] md:w-[25rem] h-[15rem] md:h-[25rem] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+          <motion.div animate={{ rotate: -360, scale: [1, 1.2, 1] }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute bottom-0 left-0 -mb-10 -ml-10 w-[15rem] md:w-[25rem] h-[15rem] md:h-[25rem] bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+          <motion.div animate={{ y: [-15, 15, -15] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-primary/5 rounded-full blur-2xl pointer-events-none" />
 
           {/* Icon Cluster UI */}
           <div className="inline-flex items-center justify-center gap-4 mb-10 relative z-10">
-            <div className="flex items-center justify-center size-12 md:size-14 rounded-none bg-primary/10 text-primary border border-primary/20 shadow-sm">
+            <div className="flex items-center justify-center size-12 md:size-14 rounded-full bg-primary/10 text-primary border border-primary/20 shadow-sm">
               <Rocket className="size-6 md:size-7" />
             </div>
-            <div className="flex items-center justify-center size-16 md:size-20 rounded-none bg-primary text-primary-foreground shadow-lg shadow-primary/25 ring-4 ring-primary/20">
+            <div className="flex items-center justify-center size-16 md:size-20 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 ring-4 ring-primary/20">
               <Sparkles className="size-8 md:size-10" />
             </div>
-            <div className="flex items-center justify-center size-12 md:size-14 rounded-none bg-primary/10 text-primary border border-primary/20 shadow-sm">
+            <div className="flex items-center justify-center size-12 md:size-14 rounded-full bg-primary/10 text-primary border border-primary/20 shadow-sm">
               <Code className="size-6 md:size-7" />
             </div>
           </div>
@@ -46,9 +46,9 @@ export function CTASection() {
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto">
-              <Button size="lg" className="w-full rounded-none font-bold cursor-pointer group shadow-lg shadow-primary/20 px-10 h-14 md:h-16 text-base md:text-lg transition-colors border border-primary relative overflow-hidden">
+              <Button size="lg" className="w-full font-bold cursor-pointer group shadow-lg shadow-primary/20 px-10 h-14 md:h-16 text-base md:text-lg transition-colors border border-primary relative overflow-hidden">
                 <span className="relative z-10 flex items-center text-primary-foreground">
-                  <span className="flex h-1.5 w-1.5 rounded-none bg-primary-foreground animate-pulse mr-3" />
+                  <span className="flex h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse mr-3" />
                   [Primary Action] <ArrowRight className="ml-2 size-5 md:size-6 group-hover:translate-x-1 transition-transform" />
                 </span>
                 <div className="absolute inset-0 bg-primary opacity-100 group-hover:opacity-90 transition-opacity" />
