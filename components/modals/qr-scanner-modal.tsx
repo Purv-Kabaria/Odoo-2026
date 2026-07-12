@@ -58,16 +58,19 @@ export function QrScannerModal({ onScanSuccess }: QrScannerModalProps) {
           { fps: 10, qrbox: { width: 250, height: 250 } },
           (decodedText) => {
             // Successful scan — stop scanning immediately, then notify parent.
-            void scanner
-              .stop()
-              .catch(() => undefined)
-              .then(() => {
-                scannerRef.current = null;
-                if (mountedRef.current) {
-                  setOpen(false);
-                  onScanSuccess(decodedText);
+            const currentScanner = scannerRef.current;
+            if (currentScanner) {
+              try {
+                if (currentScanner.isScanning) {
+                  void currentScanner.stop().catch(() => undefined);
                 }
-              });
+              } catch (e) {}
+              scannerRef.current = null;
+            }
+            if (mountedRef.current) {
+              setOpen(false);
+              onScanSuccess(decodedText);
+            }
           },
           // Ignore per-frame "no QR found" errors — this callback fires constantly.
           () => undefined,
@@ -92,7 +95,11 @@ export function QrScannerModal({ onScanSuccess }: QrScannerModalProps) {
       cancelled = true;
       const scanner = scannerRef.current;
       if (scanner) {
-        void scanner.stop().catch(() => undefined);
+        try {
+          if (scanner.isScanning) {
+            void scanner.stop().catch(() => undefined);
+          }
+        } catch (e) {}
         scannerRef.current = null;
       }
     };
@@ -118,7 +125,11 @@ export function QrScannerModal({ onScanSuccess }: QrScannerModalProps) {
             // Ensure camera stops before React unmounts the dialog content.
             const scanner = scannerRef.current;
             if (scanner) {
-              void scanner.stop().catch(() => undefined);
+              try {
+                if (scanner.isScanning) {
+                  void scanner.stop().catch(() => undefined);
+                }
+              } catch (e) {}
               scannerRef.current = null;
             }
           }
