@@ -8,7 +8,9 @@ const BATCH_SIZE = 500;
 
 const indexes = {
   users: process.env.MEILISEARCH_USERS_INDEX ?? "users",
+  products: process.env.MEILISEARCH_PRODUCTS_INDEX ?? "products",
   organizations: process.env.MEILISEARCH_ORGANIZATIONS_INDEX ?? "organizations",
+  assets: process.env.MEILISEARCH_ASSETS_INDEX ?? "assets",
 };
 
 function headers() {
@@ -40,17 +42,36 @@ async function configureIndexes() {
     meiliRequest(`/indexes/${indexes.users}/settings`, {
       method: "PATCH",
       body: JSON.stringify({
-        searchableAttributes: ["name", "email", "role"],
-        filterableAttributes: ["role", "status"],
+        searchableAttributes: ["name", "email", "location", "role", "gender"],
+        filterableAttributes: ["role", "gender"],
         sortableAttributes: ["createdAt", "name", "email", "role"],
+        typoTolerance: { enabled: true },
+      }),
+    }),
+    meiliRequest(`/indexes/${indexes.products}/settings`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        searchableAttributes: ["name", "sku", "category", "status"],
+        filterableAttributes: ["category", "status"],
+        sortableAttributes: ["createdAt", "name", "sku", "priceCents", "stock"],
         typoTolerance: { enabled: true },
       }),
     }),
     meiliRequest(`/indexes/${indexes.organizations}/settings`, {
       method: "PATCH",
       body: JSON.stringify({
-        searchableAttributes: ["name", "slug"],
-        sortableAttributes: ["createdAt", "name"],
+        searchableAttributes: ["name", "slug", "industry", "region", "plan"],
+        filterableAttributes: ["industry", "region", "plan"],
+        sortableAttributes: ["createdAt", "name", "seats"],
+        typoTolerance: { enabled: true },
+      }),
+    }),
+    meiliRequest(`/indexes/${indexes.assets}/settings`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        searchableAttributes: ["assetTag", "name", "category", "serialNumber", "location"],
+        filterableAttributes: ["category", "status", "condition", "location", "isBookable"],
+        sortableAttributes: ["createdAt", "assetTag", "name"],
         typoTolerance: { enabled: true },
       }),
     }),
@@ -94,9 +115,27 @@ async function main() {
       name: user.name,
       email: user.email,
       role: user.role,
-      status: user.status,
+      location: user.location,
+      gender: user.gender,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
+    }),
+  });
+
+  await indexModel({
+    label: "products",
+    indexName: indexes.products,
+    findMany: (args) => prisma.product.findMany(args),
+    toDocument: (product) => ({
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      category: product.category,
+      status: product.status,
+      priceCents: product.priceCents,
+      stock: product.stock,
+      createdAt: product.createdAt.toISOString(),
+      updatedAt: product.updatedAt.toISOString(),
     }),
   });
 
@@ -108,8 +147,31 @@ async function main() {
       id: organization.id,
       name: organization.name,
       slug: organization.slug,
+      industry: organization.industry,
+      region: organization.region,
+      plan: organization.plan,
+      seats: organization.seats,
       createdAt: organization.createdAt.toISOString(),
       updatedAt: organization.updatedAt.toISOString(),
+    }),
+  });
+
+  await indexModel({
+    label: "assets",
+    indexName: indexes.assets,
+    findMany: (args) => prisma.asset.findMany(args),
+    toDocument: (asset) => ({
+      id: asset.id,
+      assetTag: asset.assetTag,
+      name: asset.name,
+      category: asset.category,
+      serialNumber: asset.serialNumber,
+      status: asset.status,
+      condition: asset.condition,
+      location: asset.location,
+      isBookable: asset.isBookable,
+      createdAt: asset.createdAt.toISOString(),
+      updatedAt: asset.updatedAt.toISOString(),
     }),
   });
 }

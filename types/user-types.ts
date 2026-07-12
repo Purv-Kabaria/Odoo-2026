@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const UserSchema = z.object({
-  id: z.string().cuid().optional(),
+  id: z.uuid().optional(),
   name: z.string().trim().min(2, 'Name must be at least 2 characters').max(120),
   email: z
     .string()
@@ -9,12 +9,9 @@ export const UserSchema = z.object({
     .toLowerCase()
     .email('Invalid email address')
     .max(254),
-  role: z.enum(['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD', 'EMPLOYEE']).default('EMPLOYEE'),
-  // PENDING_APPROVAL is set only by the invite flow and cleared automatically
-  // when the invited user sets their password — never a target an editor
-  // picks by hand, but the read schema still needs to accept it since
-  // existing rows can be in that state.
-  status: z.enum(['PENDING_APPROVAL', 'ACTIVE', 'INACTIVE']).default('ACTIVE'),
+  role: z.enum(['ADMIN', 'USER', 'MODERATOR']).default('USER'),
+  location: z.string().trim().max(120).optional().nullable(),
+  gender: z.string().trim().max(40).optional().nullable(),
   createdAt: z.union([z.string(), z.date()]).optional(),
   updatedAt: z.union([z.string(), z.date()]).optional(),
 });
@@ -30,7 +27,7 @@ export const UserWriteSchema = UserSchema.omit({
 export type UserWriteInput = z.infer<typeof UserWriteSchema>;
 
 export const UserIdSchema = z.object({
-  id: z.string().cuid('Invalid user identifier'),
+  id: z.uuid('Invalid user identifier'),
 });
 
 export interface ApiResponse<T> {

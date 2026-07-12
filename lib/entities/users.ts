@@ -33,9 +33,8 @@ export const usersEntityConfig: EntityConfig = {
       type: 'select',
       options: [
         { label: 'Admin', value: 'ADMIN' },
-        { label: 'Asset Manager', value: 'ASSET_MANAGER' },
-        { label: 'Department Head', value: 'DEPARTMENT_HEAD' },
-        { label: 'Employee', value: 'EMPLOYEE' },
+        { label: 'Moderator', value: 'MODERATOR' },
+        { label: 'User', value: 'USER' },
       ],
       sortable: true,
       filterable: true,
@@ -43,23 +42,25 @@ export const usersEntityConfig: EntityConfig = {
       visibleByDefault: true,
     },
     {
-      key: 'status',
-      label: 'Status',
-      type: 'select',
-      // "Pending Approval" is set only by the invite flow and cleared
-      // automatically once the invited user sets their password — included
-      // here so a pending row still renders/round-trips correctly in the
-      // directory table, not as something to hand-pick. The DB's
-      // User_password_or_pending_check constraint rejects any attempt to
-      // flip a still-passwordless user to Active from this form.
-      options: [
-        { label: 'Pending Approval', value: 'PENDING_APPROVAL' },
-        { label: 'Active', value: 'ACTIVE' },
-        { label: 'Inactive', value: 'INACTIVE' },
-      ],
-      sortable: true,
+      key: 'location',
+      label: 'Location',
+      type: 'text',
       filterable: true,
-      visibleByDefault: true,
+      searchable: true,
+      visibleByDefault: false,
+    },
+    {
+      key: 'gender',
+      label: 'Gender',
+      type: 'select',
+      options: [
+        { label: 'Male', value: 'Male' },
+        { label: 'Female', value: 'Female' },
+        { label: 'Other', value: 'Other' },
+      ],
+      filterable: true,
+      searchable: true,
+      visibleByDefault: false,
     },
     {
       key: 'createdAt',
@@ -71,16 +72,14 @@ export const usersEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'ASSET_MANAGER'],
-    // No generic "create" here — a User row needs a hashed password and an
-    // orgId, neither of which this scalar-column form can produce safely;
-    // account creation goes through /signup instead.
-    create: [],
-    update: ['ADMIN', 'ASSET_MANAGER'],
+    read: ['ADMIN', 'MODERATOR'],
+    create: ['ADMIN', 'MODERATOR'],
+    update: ['ADMIN', 'MODERATOR'],
     delete: ['ADMIN'],
   },
-  // Only an Admin can promote/demote a role — the only role-assignment
-  // entry point per the problem statement (Screen 3 Tab C) and AGENTS.md §6.
+  // Any signed-in Moderator can update a user's profile fields, but only an
+  // Admin can promote/demote a role — prevents a Moderator from granting
+  // themselves (or anyone) Admin access.
   restrictedFields: {
     fields: ['role'],
     allowedRoles: ['ADMIN'],
