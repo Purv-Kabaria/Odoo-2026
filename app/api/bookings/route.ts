@@ -60,8 +60,17 @@ export async function POST(req: Request) {
       );
     }
 
+    const checkInDeadline = new Date(startTime.getTime() + 15 * 60 * 1000);
     const booking = await prisma.booking.create({
-      data: { assetId, bookedById: user.id, title: title ?? null, startTime, endTime, onBehalfOfDeptId: onBehalfOfDeptId ?? null },
+      data: {
+        assetId,
+        bookedById: user.id,
+        title: title ?? null,
+        startTime,
+        endTime,
+        onBehalfOfDeptId: onBehalfOfDeptId ?? null,
+        checkInDeadline,
+      },
     });
 
     void recordActivityEvent({
