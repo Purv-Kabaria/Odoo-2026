@@ -1,150 +1,113 @@
 import { randomBytes } from "crypto";
 
+import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
 import { getCurrentUser, hashToken } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/rbac";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { requireRole, ForbiddenError } from "@/lib/rbac";
 import { InviteUserSchema } from "@/types/auth-types";
 
+// Invite links live much longer than a password-reset link (30 min) since
+// they're often not opened same-day — an invitee checking email a few days
+// later shouldn't hit a dead link.
+const INVITE_TOKEN_TTL_DAYS = 7;
 const INVITE_RATE_LIMIT = 20;
 const INVITE_RATE_WINDOW_MS = 60 * 60 * 1000;
-const INVITE_TOKEN_TTL_HOURS = 48;
 
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID();
 
   try {
+    const user = await getCurrentUser();
+    if (!user) return Api.unauthorized();
+    try {
+      requireRole(user, "ADMIN");
+    } catch (error) {
+      if (error instanceof ForbiddenError) return Api.forbidden(error.message);
+      throw error;
+    }
+
     const rateLimit = await checkRateLimit(
-      `invite:${getClientIp(req)}`,
+      `users-invite:${getClientIp(req)}`,
       INVITE_RATE_LIMIT,
       INVITE_RATE_WINDOW_MS,
     );
     if (!rateLimit.success) {
-      logger.warn("users.invite.rate_limited", { requestId });
+      logger.warn("users.invite.rate_limited", { requestId, actorId: user.id });
       return Api.tooManyRequests(
         "Too many invites sent. Try again later.",
         (rateLimit.resetAt - Date.now()) / 1000,
       );
     }
 
-    const actor = await getCurrentUser();
-    if (!actor) {
-      return Api.unauthorized();
-    }
-
-    // Require ADMIN role for inviting users
-    try {
-      requireRole(actor, "ADMIN");
-    } catch {
-      return Api.forbidden("Only administrators can invite users");
-    }
-
     const body = await req.json().catch(() => null);
     const validation = InviteUserSchema.safeParse(body);
-
     if (!validation.success) {
       return Api.badRequest("Invalid invite details", validation.error.format());
     }
-
     const { email, name, role, departmentId } = validation.data;
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true },
-    });
-
-    if (existingUser) {
-      return Api.conflict("A user with this email already exists");
-    }
-
-    // If departmentId is provided, verify it exists and belongs to the same organization
     if (departmentId) {
-      const dept = await prisma.department.findFirst({
-        where: { id: departmentId, orgId: actor.orgId },
-        select: { id: true },
+      const department = await prisma.department.findFirst({
+        where: { id: departmentId, orgId: user.orgId },
       });
-      if (!dept) {
-        return Api.badRequest("Department not found in this organization");
-      }
+      if (!department) return Api.badRequest("Department not found");
     }
+
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) return Api.conflict("A user with this email already exists");
 
     const token = randomBytes(32).toString("hex");
     const tokenHash = hashToken(token);
-    const expiresAt = new Date(
-      Date.now() + INVITE_TOKEN_TTL_HOURS * 60 * 60 * 1000,
-    );
+    const expiresAt = new Date(Date.now() + INVITE_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Create user with invitedById and PENDING_APPROVAL status, no passwordHash
-      const newUser = await tx.user.create({
+    const invited = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
         data: {
-          orgId: actor.orgId,
+          orgId: user.orgId,
           email,
           name,
           role,
+          departmentId: departmentId ?? null,
           status: "PENDING_APPROVAL",
-          departmentId: departmentId || null,
-          invitedById: actor.id,
+          passwordHash: null,
+          invitedById: user.id,
           invitedAt: new Date(),
         },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          status: true,
-          departmentId: true,
-        },
       });
-
-      // Create a password reset/setup token linked to the user
       await tx.passwordResetToken.create({
-        data: {
-          userId: newUser.id,
-          tokenHash,
-          expiresAt,
-        },
+        data: { userId: created.id, tokenHash, expiresAt },
       });
-
-      // Log activity
-      await tx.activityLog.create({
-        data: {
-          orgId: actor.orgId,
-          actorId: actor.id,
-          action: "USER_INVITED",
-          entityType: "User",
-          entityId: newUser.id,
-          metadata: {
-            invitedEmail: email,
-            invitedRole: role,
-            departmentId: departmentId || null,
-          },
-        },
-      });
-
-      return newUser;
+      return created;
     });
 
-    const setupUrl = `${env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+    const inviteUrl = `${env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
 
-    logger.info("users.invited", {
-      requestId,
-      actorId: actor.id,
-      invitedUserId: result.id,
+    void recordActivityEvent({
+      orgId: user.orgId,
+      action: "user.invited",
+      actorId: user.id,
+      entityType: "user",
+      entityId: invited.id,
+      metadata: { role },
     });
+    logger.info("users.invite", { requestId, actorId: user.id, invitedId: invited.id });
 
     return Api.created({
-      message: "Invitation sent successfully",
-      user: result,
-      // Dev-only helper: expose setup link so smoke test script can complete the invite
-      setupUrl: env.NODE_ENV === "production" ? null : setupUrl,
+      id: invited.id,
+      email: invited.email,
+      name: invited.name,
+      role: invited.role,
+      status: invited.status,
+      // Same dev-only disclosure pattern as forgot-password — a real deploy
+      // sends this via email instead of returning it in the response.
+      inviteUrl: env.NODE_ENV === "production" ? null : inviteUrl,
     });
   } catch (error) {
     logger.error("users.invite.failed", error, { requestId });
-    return Api.internalError("Failed to invite user");
+    return Api.internalError("Failed to send invite");
   }
 }

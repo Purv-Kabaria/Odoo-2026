@@ -46,7 +46,14 @@ export const usersEntityConfig: EntityConfig = {
       key: 'status',
       label: 'Status',
       type: 'select',
+      // "Pending Approval" is set only by the invite flow and cleared
+      // automatically once the invited user sets their password — included
+      // here so a pending row still renders/round-trips correctly in the
+      // directory table, not as something to hand-pick. The DB's
+      // User_password_or_pending_check constraint rejects any attempt to
+      // flip a still-passwordless user to Active from this form.
       options: [
+        { label: 'Pending Approval', value: 'PENDING_APPROVAL' },
         { label: 'Active', value: 'ACTIVE' },
         { label: 'Inactive', value: 'INACTIVE' },
       ],
