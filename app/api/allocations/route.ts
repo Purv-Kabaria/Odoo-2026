@@ -55,7 +55,6 @@ export async function GET(req: Request) {
           asset: { select: { id: true, assetTag: true, name: true, status: true } },
           toEmployee: { select: { id: true, name: true } },
           toDepartment: { select: { id: true, name: true } },
-          kitAllocation: { select: { kit: { select: { id: true, name: true } } } },
         },
       }),
       prisma.allocation.count({ where }),
