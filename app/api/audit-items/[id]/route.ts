@@ -37,8 +37,12 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
       return Api.badRequest("This audit cycle is closed — verification is locked");
     }
 
-    const updated = await prisma.auditItem.update({
-      where: { id: item.id },
+    // Guarded against a concurrent cycle-close: re-checks the cycle isn't
+    // CLOSED at write time (not just at the read above), since closing a
+    // cycle snapshots a DiscrepancyReport that a late-landing write here
+    // would silently fall out of sync with.
+    const guarded = await prisma.auditItem.updateMany({
+      where: { id: item.id, cycle: { status: { not: "CLOSED" } } },
       data: {
         verification: validation.data.verification,
         notes: validation.data.notes ?? null,
@@ -46,6 +50,10 @@ export async function PATCH(req: Request, props: { params: Promise<{ id: string 
         auditedAt: new Date(),
       },
     });
+    if (guarded.count !== 1) {
+      return Api.badRequest("This audit cycle was closed before verification could be recorded — please retry");
+    }
+    const updated = await prisma.auditItem.findUniqueOrThrow({ where: { id: item.id } });
 
     void recordActivityEvent({
       orgId: user.orgId,

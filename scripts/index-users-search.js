@@ -38,11 +38,18 @@ async function meiliRequest(path, options = {}) {
 
 async function configureIndexes() {
   await Promise.all([
+    // `orgId` is filterable (not a UI column, so it's never listed
+    // alongside it) on every multi-tenant index so a query can be scoped to
+    // the caller's own org *inside* Meilisearch, not just in the Postgres
+    // follow-up — otherwise another tenant's higher-scoring documents can
+    // push this org's real matches past the top-N cutoff. Organizations
+    // isn't included: an org row's own id IS the tenant boundary there
+    // (tenantScope: id === orgId), so there's no separate orgId to filter.
     meiliRequest(`/indexes/${indexes.users}/settings`, {
       method: "PATCH",
       body: JSON.stringify({
         searchableAttributes: ["name", "email", "role"],
-        filterableAttributes: ["role", "status"],
+        filterableAttributes: ["role", "status", "orgId"],
         sortableAttributes: ["createdAt", "name", "email", "role"],
         typoTolerance: { enabled: true },
       }),
@@ -59,7 +66,7 @@ async function configureIndexes() {
       method: "PATCH",
       body: JSON.stringify({
         searchableAttributes: ["assetTag", "name", "category", "serialNumber", "location"],
-        filterableAttributes: ["category", "status", "condition", "location", "isBookable"],
+        filterableAttributes: ["category", "status", "condition", "location", "isBookable", "orgId"],
         sortableAttributes: ["createdAt", "assetTag", "name"],
         typoTolerance: { enabled: true },
       }),
@@ -101,6 +108,7 @@ async function main() {
     findMany: (args) => prisma.user.findMany(args),
     toDocument: (user) => ({
       id: user.id,
+      orgId: user.orgId,
       name: user.name,
       email: user.email,
       role: user.role,
@@ -129,6 +137,7 @@ async function main() {
     findMany: (args) => prisma.asset.findMany(args),
     toDocument: (asset) => ({
       id: asset.id,
+      orgId: asset.orgId,
       assetTag: asset.assetTag,
       name: asset.name,
       category: asset.category,

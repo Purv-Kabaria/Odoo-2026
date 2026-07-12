@@ -4,9 +4,11 @@ import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
-import { deleteCacheByPrefix } from "@/lib/redis-cache";
+import { deleteCacheByPrefix, getJsonCache, setJsonCache } from "@/lib/redis-cache";
 import { AllocateAssetSchema, AllocationListQuerySchema } from "@/types/allocation-types";
 import type { Prisma } from "@prisma/client";
+
+const CACHE_PREFIX = "allocations:list:";
 
 function canAllocate(role: string): boolean {
   return role === "ADMIN" || role === "ASSET_MANAGER";
@@ -36,7 +38,17 @@ export async function GET(req: Request) {
       where.expectedReturnDate = { lt: new Date() };
     }
 
-    const requestedScope = scope === "all" && !canAllocate(user.role) && user.role !== "DEPARTMENT_HEAD" ? "mine" : scope;
+    // "all" is only unrestricted for ADMIN/ASSET_MANAGER. A Department Head
+    // requesting "all" gets collapsed to their own department (not "mine",
+    // since heads legitimately see their whole department) — anyone else
+    // requesting "all" gets collapsed to "mine". Without this, a Department
+    // Head could pass ?scope=all and read every allocation in the org.
+    const requestedScope =
+      scope === "all" && !canAllocate(user.role)
+        ? user.role === "DEPARTMENT_HEAD"
+          ? "department"
+          : "mine"
+        : scope;
 
     if (requestedScope === "mine") {
       where.toEmployeeId = user.id;
@@ -45,6 +57,19 @@ export async function GET(req: Request) {
       where.OR = [{ toDepartmentId: user.departmentId }, { toEmployee: { departmentId: user.departmentId } }];
     }
     // requestedScope === "all": no additional filter — Asset Manager/Admin see every allocation in the org.
+
+    // Cache key includes userId (not just role) since "mine"/"department"
+    // scope results differ per caller even within the same role.
+    const cacheKey = `${CACHE_PREFIX}${user.orgId}:${JSON.stringify({ userId: user.id, page, limit, requestedScope, overdue })}`;
+    const cached = await getJsonCache<{ rows: unknown[]; total: number }>(cacheKey);
+    if (cached) {
+      return Api.ok(cached.rows, {
+        total: cached.total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(cached.total / limit)),
+      });
+    }
 
     const [rows, total] = await Promise.all([
       prisma.allocation.findMany({
@@ -61,6 +86,8 @@ export async function GET(req: Request) {
       }),
       prisma.allocation.count({ where }),
     ]);
+
+    void setJsonCache(cacheKey, { rows, total });
 
     return Api.ok(rows, { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (error) {
@@ -86,6 +113,18 @@ export async function POST(req: Request) {
     if (!asset) return Api.notFound("Asset not found");
     if (asset.isBookable) {
       return Api.badRequest("This asset is a shared bookable resource — use Resource Booking instead");
+    }
+
+    // The target must belong to the caller's own org — otherwise an Asset
+    // Manager could allocate an asset to a foreign-org user/department by
+    // guessing/knowing their id, a cross-tenant assignment + data leak.
+    if (toEmployeeId) {
+      const targetEmployee = await prisma.user.findFirst({ where: { id: toEmployeeId, orgId: user.orgId } });
+      if (!targetEmployee) return Api.badRequest("Target employee not found in your organization");
+    }
+    if (toDepartmentId) {
+      const targetDepartment = await prisma.department.findFirst({ where: { id: toDepartmentId, orgId: user.orgId } });
+      if (!targetDepartment) return Api.badRequest("Target department not found in your organization");
     }
 
     const existingActive = await prisma.allocation.findFirst({
@@ -119,6 +158,7 @@ export async function POST(req: Request) {
     });
 
     void deleteCacheByPrefix(`assets:list:${user.orgId}:`);
+    void deleteCacheByPrefix(`${CACHE_PREFIX}${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "asset.allocated",

@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+export const MaintenanceListQuerySchema = z.object({
+  status: z
+    .enum(["PENDING", "APPROVED", "REJECTED", "TECHNICIAN_ASSIGNED", "IN_PROGRESS", "RESOLVED"])
+    .optional(),
+});
+
 export const MaintenanceRequestCreateSchema = z.object({
   assetId: z.string().uuid(),
   description: z.string().trim().min(2).max(1000),

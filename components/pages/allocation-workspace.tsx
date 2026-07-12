@@ -1,21 +1,28 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "framer-motion";
+import { ArrowLeftRight, Check, CheckCircle2, Package, Plus, Send, Undo2, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { CreateKitModal } from "@/components/modals/create-kit-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ReturnAllocationModal } from "@/components/modals/return-allocation-modal";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { readApiResponse } from "@/lib/api-client";
 import { formatTableDate } from "@/lib/date-format";
+import { humanizeEnum } from "@/lib/labels";
 
 type Option = { id: string; name: string };
 type Asset = { id: string; assetTag: string; name: string; status: string; isBookable: boolean };
@@ -63,6 +70,8 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isCreateKitOpen, setIsCreateKitOpen] = React.useState(false);
   const [returnTarget, setReturnTarget] = React.useState<{ allocationId: string; assetLabel: string } | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const itemTransition = prefersReducedMotion ? { duration: 0 } : { duration: 0.18 };
 
   const load = React.useCallback(async () => {
     setIsLoading(true);
@@ -225,18 +234,23 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
     <div className="grid grid-cols-2 gap-3">
       <div className="grid gap-2">
         <Label htmlFor="alloc-target">{targetType === "employee" ? "Employee" : "Department"}</Label>
-        <Select value={targetId} onValueChange={setTargetId}>
-          <SelectTrigger id="alloc-target" className="cursor-pointer"><SelectValue placeholder="Select" /></SelectTrigger>
-          <SelectContent>
-            {(targetType === "employee" ? employees : departments).map((o) => (
-              <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          id="alloc-target"
+          value={targetId}
+          onValueChange={setTargetId}
+          options={(targetType === "employee" ? employees : departments).map((o) => ({ value: o.id, label: o.name }))}
+          placeholder="Select"
+          emptyText={targetType === "employee" ? "No employees found." : "No departments found."}
+        />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="alloc-return-date">Expected return date</Label>
-        <Input id="alloc-return-date" type="date" value={expectedReturnDate} onChange={(e) => setExpectedReturnDate(e.target.value)} />
+        <DatePicker
+          id="alloc-return-date"
+          value={expectedReturnDate}
+          onValueChange={setExpectedReturnDate}
+          minDate={new Date()}
+        />
       </div>
     </div>
   );
@@ -245,7 +259,10 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
     <main className="mx-auto w-full max-w-6xl px-3 py-6 sm:px-4 md:px-6 lg:px-8">
       <div className="mb-5 space-y-1">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Assets</p>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Allocation & Transfer</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          <ArrowLeftRight className="size-6 text-primary" />
+          Allocation & Transfer
+        </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">Manage who holds what, with conflict-safe transfers.</p>
       </div>
 
@@ -281,12 +298,14 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="transfer-to">To</Label>
-                      <Select value={transferTo} onValueChange={setTransferTo}>
-                        <SelectTrigger id="transfer-to" className="cursor-pointer"><SelectValue placeholder="Select employee" /></SelectTrigger>
-                        <SelectContent>
-                          {employees.map((e) => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        id="transfer-to"
+                        value={transferTo}
+                        onValueChange={setTransferTo}
+                        options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                        placeholder="Select employee"
+                        emptyText="No employees found."
+                      />
                     </div>
                   </div>
                   <div className="grid gap-2">
@@ -294,8 +313,14 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
                     <Textarea id="transfer-reason" value={transferReason} onChange={(e) => setTransferReason(e.target.value)} maxLength={500} required />
                   </div>
                   <div className="flex gap-2">
-                    <Button type="submit" disabled={isSubmitting || !transferTo || !transferReason} className="cursor-pointer">Submit Request</Button>
-                    <Button type="button" variant="outline" className="cursor-pointer" onClick={() => setConflict(null)}>Cancel</Button>
+                    <Button type="submit" disabled={isSubmitting || !transferTo || !transferReason} className="cursor-pointer">
+                      <Send className="size-4" />
+                      Submit Request
+                    </Button>
+                    <Button type="button" variant="outline" className="cursor-pointer" onClick={() => setConflict(null)}>
+                      <X className="size-4" />
+                      Cancel
+                    </Button>
                   </div>
                 </form>
               </div>
@@ -303,17 +328,17 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
               <form onSubmit={(e) => void handleAllocate(e)} className="grid gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="alloc-asset">Asset</Label>
-                  <Select value={assetId} onValueChange={setAssetId}>
-                    <SelectTrigger id="alloc-asset" className="cursor-pointer"><SelectValue placeholder="Select an available asset" /></SelectTrigger>
-                    <SelectContent>
-                      {assets.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.assetTag} — {a.name}
-                          {a.status !== "AVAILABLE" ? ` (${a.status.replace("_", " ").toLowerCase()})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    id="alloc-asset"
+                    value={assetId}
+                    onValueChange={setAssetId}
+                    options={assets.map((a) => ({
+                      value: a.id,
+                      label: `${a.assetTag} — ${a.name}${a.status !== "AVAILABLE" ? ` (${humanizeEnum(a.status)})` : ""}`,
+                    }))}
+                    placeholder="Select an available asset"
+                    emptyText="No assets found."
+                  />
                 </div>
                 <RadioGroup value={targetType} onValueChange={(v) => { setTargetType(v as "employee" | "department"); setTargetId(""); }} className="flex gap-4">
                   <div className="flex items-center gap-2"><RadioGroupItem value="employee" id="target-employee" /><Label htmlFor="target-employee">Employee</Label></div>
@@ -321,6 +346,7 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
                 </RadioGroup>
                 {targetPicker}
                 <Button type="submit" disabled={isSubmitting || !assetId || !targetId} className="w-fit cursor-pointer">
+                  <CheckCircle2 className="size-4" />
                   {isSubmitting ? "Allocating..." : "Allocate"}
                 </Button>
               </form>
@@ -340,7 +366,10 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
                 )}
               </div>
               <p className="text-xs text-muted-foreground">Return or transfer the conflicting assets first, then retry the kit allocation.</p>
-              <Button type="button" variant="outline" className="cursor-pointer" onClick={() => setKitConflict(null)}>Back</Button>
+              <Button type="button" variant="outline" className="cursor-pointer" onClick={() => setKitConflict(null)}>
+                <Undo2 className="size-4" />
+                Back
+              </Button>
             </div>
           ) : (
             <form onSubmit={(e) => void handleKitAllocate(e)} className="grid gap-3">
@@ -354,7 +383,8 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
                     className="h-auto cursor-pointer p-0 text-xs"
                     onClick={() => setIsCreateKitOpen(true)}
                   >
-                    + New kit
+                    <Plus className="size-3.5" />
+                    New kit
                   </Button>
                 </div>
                 <Select value={kitId} onValueChange={setKitId}>
@@ -375,6 +405,7 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
               </RadioGroup>
               {targetPicker}
               <Button type="submit" disabled={isSubmitting || !kitId || !targetId} className="w-fit cursor-pointer">
+                <Package className="size-4" />
                 {isSubmitting ? "Allocating..." : "Allocate kit"}
               </Button>
             </form>
@@ -388,18 +419,30 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
         <section className="mb-5 border border-border bg-card p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold">Transfer approval queue</h2>
           <ul className="space-y-2">
-            {transfers.map((t) => (
-              <li key={t.id} className="flex flex-col gap-2 border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+            {transfers.map((t, index) => (
+              <motion.li
+                key={t.id}
+                initial={prefersReducedMotion ? undefined : { opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...itemTransition, delay: prefersReducedMotion ? 0 : index * 0.03 }}
+                className="flex flex-col gap-2 border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="text-sm">
                   <span className="font-medium">{t.asset.assetTag} — {t.asset.name}</span>{" "}
                   <span className="text-muted-foreground">from {t.fromEmployee?.name ?? "—"} to {t.toEmployee?.name}</span>
                   <p className="text-xs text-muted-foreground">{t.reason}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" className="cursor-pointer" onClick={() => void decideTransfer(t.id, "approve")}>Approve</Button>
-                  <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => void decideTransfer(t.id, "reject")}>Reject</Button>
+                  <Button size="sm" className="cursor-pointer" onClick={() => void decideTransfer(t.id, "approve")}>
+                    <Check className="size-4" />
+                    Approve
+                  </Button>
+                  <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => void decideTransfer(t.id, "reject")}>
+                    <XCircle className="size-4" />
+                    Reject
+                  </Button>
                 </div>
-              </li>
+              </motion.li>
             ))}
           </ul>
         </section>
@@ -420,11 +463,20 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
         {isLoading ? (
           <div className="grid gap-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
         ) : allocations.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No allocations found.</p>
+          <div className="flex min-h-32 flex-col items-center justify-center gap-2 border border-dashed border-border p-6 text-center">
+            <Package className="size-6 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">No allocations found.</p>
+          </div>
         ) : (
           <ul className="space-y-2">
-            {allocations.map((a) => (
-              <li key={a.id} className="flex flex-col gap-2 border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+            {allocations.map((a, index) => (
+              <motion.li
+                key={a.id}
+                initial={prefersReducedMotion ? undefined : { opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...itemTransition, delay: prefersReducedMotion ? 0 : Math.min(index, 10) * 0.02 }}
+                className="flex flex-col gap-2 border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="text-sm">
                   <span className="font-medium">{a.asset.assetTag} — {a.asset.name}</span>{" "}
                   <span className="text-muted-foreground">→ {a.toEmployee?.name ?? a.toDepartment?.name}</span>
@@ -437,7 +489,7 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={a.status === "ACTIVE" ? "default" : "secondary"}>{a.status}</Badge>
+                  <StatusBadge kind="allocationStatus" status={a.status} />
                   {canAllocate && a.status === "ACTIVE" && (
                     <Button
                       size="sm"
@@ -445,11 +497,12 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
                       className="cursor-pointer"
                       onClick={() => setReturnTarget({ allocationId: a.id, assetLabel: `${a.asset.assetTag} — ${a.asset.name}` })}
                     >
+                      <Undo2 className="size-4" />
                       Mark returned
                     </Button>
                   )}
                 </div>
-              </li>
+              </motion.li>
             ))}
           </ul>
         )}

@@ -78,6 +78,8 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     if (!result) return Api.badRequest("This transfer has already been decided");
 
     void deleteCacheByPrefix(`assets:list:${user.orgId}:`);
+    void deleteCacheByPrefix(`allocations:list:${user.orgId}:`);
+    void deleteCacheByPrefix(`transfers:list:${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "transfer.approved",

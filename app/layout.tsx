@@ -3,11 +3,8 @@ import { cookies } from "next/headers";
 import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import { Navbar } from "@/components/layout/navbar";
-import { Footer } from "@/components/layout/footer";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
-import { getCurrentUser } from "@/lib/auth";
 
 const fontSans = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -35,6 +32,12 @@ function getThemeCookie(value: string | undefined): Theme {
   return value === "dark" ? "dark" : "light";
 }
 
+/**
+ * True app shell: fonts, theme bootstrapping, toaster. No navbar/footer here
+ * — those are page-group-specific chrome now. Public pages (landing, auth)
+ * get Navbar+Footer from app/(public)/layout.tsx; authenticated pages get
+ * the sidebar shell from app/(protected)/layout.tsx.
+ */
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -42,7 +45,6 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const initialTheme = getThemeCookie(cookieStore.get("odoo_theme")?.value);
-  const user = await getCurrentUser();
 
   return (
     <html
@@ -51,14 +53,10 @@ export default async function RootLayout({
       style={{ colorScheme: initialTheme }}
     >
       <body
-        className={`${fontSans.variable} ${fontHeading.variable} ${fontMono.variable} antialiased flex min-h-screen flex-col text-sm`}
+        className={`${fontSans.variable} ${fontHeading.variable} ${fontMono.variable} antialiased min-h-screen text-sm`}
       >
         <ThemeProvider initialTheme={initialTheme}>
-          <Navbar user={user} />
-          <div className="flex-1">
-            {children}
-          </div>
-          <Footer />
+          {children}
           <Toaster />
         </ThemeProvider>
       </body>

@@ -1,6 +1,6 @@
 import Link from "next/link"
 import Image from "next/image"
-import { navigationLinks } from "@/lib/navigation"
+import { marketingFeatureLinks } from "@/lib/navigation"
 
 const COPYRIGHT_YEAR = 2026
 
@@ -22,7 +22,7 @@ export function Footer() {
           <div className="grid grid-cols-1 gap-8 xl:col-span-3">
             <div className="flex flex-col gap-3">
               <h3 className="font-semibold text-foreground">Navigation</h3>
-              {navigationLinks.map((link) => (
+              {marketingFeatureLinks.map((link) => (
                 <Link key={link.href} href={link.href} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors cursor-pointer">
                   <link.icon className="h-4 w-4" /> {link.title}
                 </Link>

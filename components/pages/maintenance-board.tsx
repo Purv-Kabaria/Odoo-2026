@@ -29,9 +29,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { readApiResponse } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
@@ -70,12 +70,6 @@ const LEGAL_DRAG_TRANSITIONS: Record<string, string> = {
 };
 
 const COLUMN_LABEL: Record<string, string> = Object.fromEntries(COLUMNS.map((c) => [c.key, c.label]));
-
-function priorityVariant(priority: string): "default" | "secondary" | "outline" | "destructive" {
-  if (priority === "URGENT" || priority === "HIGH") return "destructive";
-  if (priority === "MEDIUM") return "default";
-  return "secondary";
-}
 
 // A retired asset's card always shows in Retired regardless of the request's
 // own workflow status — retirement is an asset-level fact, not a maintenance
@@ -301,7 +295,7 @@ export function MaintenanceBoard({ canDecide, currentUserId }: { canDecide: bool
                       <MaintenanceCard key={item.id} item={item} canDrag={canDragThisCard}>
                         <div className="mb-1 flex items-center justify-between gap-1">
                           <span className="min-w-0 truncate font-medium">{item.asset.assetTag}</span>
-                          <Badge variant={priorityVariant(item.priority)} className="shrink-0">{item.priority}</Badge>
+                          <StatusBadge kind="maintenancePriority" status={item.priority} className="shrink-0" />
                         </div>
                         <p className="mb-2 text-muted-foreground">{item.description}</p>
                         {item.technician && <p className="mb-2 text-muted-foreground">Tech: {item.technician.name}</p>}
@@ -383,7 +377,7 @@ export function MaintenanceBoard({ canDecide, currentUserId }: { canDecide: bool
               <div className="w-56 border border-primary bg-card p-2 text-xs shadow-lg">
                 <div className="mb-1 flex items-center justify-between gap-1">
                   <span className="min-w-0 truncate font-medium">{activeItem.asset.assetTag}</span>
-                  <Badge variant={priorityVariant(activeItem.priority)} className="shrink-0">{activeItem.priority}</Badge>
+                  <StatusBadge kind="maintenancePriority" status={activeItem.priority} className="shrink-0" />
                 </div>
                 <p className="truncate text-muted-foreground">{activeItem.description}</p>
               </div>

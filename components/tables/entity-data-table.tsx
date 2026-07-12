@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { Columns3, Eye, Filter, Loader2, MoreHorizontal, Pencil, Plus, Search, SlidersHorizontal, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -88,15 +89,35 @@ export function EntityDataTable({ config, currentUserRole }: EntityDataTableProp
   const canUpdate = canPerform(config, "update", currentUserRole);
   const canDelete = canPerform(config, "delete", currentUserRole);
 
+  // Seeds the search from `?q=` so a Ctrl+K result (or any deep link) lands
+  // on this table already filtered. Re-synced whenever the param itself
+  // changes (not just on mount) — a same-route Ctrl+K navigation (e.g.
+  // selecting another user while already on /users) updates the URL without
+  // remounting this component, so a mount-only read would miss it. Safe to
+  // treat as an external signal: the table never writes `q` back to the URL
+  // itself, so this can't fight the user's own typing in the search box.
+  const searchParams = useSearchParams();
+  const urlQuery = searchParams.get("q") ?? "";
+
   const [rows, setRows] = React.useState<EntityRow[]>([]);
   const [page, setPage] = React.useState(1);
   const [limit, setLimit] = React.useState(10);
   const [totalPages, setTotalPages] = React.useState(1);
   const [totalRows, setTotalRows] = React.useState(0);
   const [searchProvider, setSearchProvider] = React.useState<SearchProvider>("none");
-  const [searchInput, setSearchInput] = React.useState("");
-  const [appliedSearch, setAppliedSearch] = React.useState("");
+  const [searchInput, setSearchInput] = React.useState(urlQuery);
+  const [appliedSearch, setAppliedSearch] = React.useState(urlQuery);
   const [isFetching, setIsFetching] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!urlQuery) return;
+    const frame = window.requestAnimationFrame(() => {
+      setPage(1);
+      setSearchInput(urlQuery);
+      setAppliedSearch(urlQuery);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [urlQuery]);
 
   const [filters, setFilters] = React.useState<FilterRule[]>([]);
   const [sorts, setSorts] = React.useState<SortRule[]>([]);

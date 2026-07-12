@@ -3,8 +3,11 @@ import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { MaintenanceRequestCreateSchema } from "@/types/maintenance-types";
+import { deleteCacheByPrefix, getJsonCache, setJsonCache } from "@/lib/redis-cache";
+import { MaintenanceListQuerySchema, MaintenanceRequestCreateSchema } from "@/types/maintenance-types";
 import type { Prisma } from "@prisma/client";
+
+const CACHE_PREFIX = "maintenance:list:";
 
 function canManage(role: string): boolean {
   return role === "ADMIN" || role === "ASSET_MANAGER";
@@ -18,11 +21,15 @@ export async function GET(req: Request) {
     if (!user) return Api.unauthorized();
 
     const searchParams = new URL(req.url).searchParams;
-    const statusParam = searchParams.get("status");
+    const validation = MaintenanceListQuerySchema.safeParse({
+      status: searchParams.get("status") ?? undefined,
+    });
+    if (!validation.success) return Api.badRequest("Invalid query", validation.error.format());
+    const { status: statusParam } = validation.data;
 
     const where: Prisma.MaintenanceRequestWhereInput = { asset: { orgId: user.orgId } };
     if (statusParam) {
-      where.status = statusParam as Prisma.MaintenanceRequestWhereInput["status"];
+      where.status = statusParam;
     } else if (canManage(user.role)) {
       where.status = { not: "REJECTED" };
     }
@@ -34,6 +41,12 @@ export async function GET(req: Request) {
       where.OR = [{ raisedById: user.id }, { technicianId: user.id }];
     }
 
+    // Cache key includes userId since non-manager results are scoped to
+    // "raised by or assigned to me", which differs per caller.
+    const cacheKey = `${CACHE_PREFIX}${user.orgId}:${JSON.stringify({ userId: user.id, role: user.role, status: statusParam })}`;
+    const cached = await getJsonCache<unknown[]>(cacheKey);
+    if (cached) return Api.ok(cached);
+
     const rows = await prisma.maintenanceRequest.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -44,6 +57,8 @@ export async function GET(req: Request) {
         technician: { select: { id: true, name: true } },
       },
     });
+
+    void setJsonCache(cacheKey, rows);
 
     return Api.ok(rows);
   } catch (error) {
@@ -71,6 +86,7 @@ export async function POST(req: Request) {
       data: { assetId, raisedById: user.id, description, priority, photoUrl: photoUrl ?? null },
     });
 
+    void deleteCacheByPrefix(`${CACHE_PREFIX}${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "maintenance.raised",

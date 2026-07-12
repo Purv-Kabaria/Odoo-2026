@@ -3,11 +3,14 @@ import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { deleteCacheByPrefix, getJsonCache, setJsonCache } from "@/lib/redis-cache";
 import { KitCreateSchema, KitListQuerySchema } from "@/types/kit-types";
 
 // Prisma over the Node driver, never Edge — same reasoning as every other
 // route here that touches the database.
 export const runtime = "nodejs";
+
+const CACHE_PREFIX = "kits:list:";
 
 function canAllocate(role: string): boolean {
   return role === "ADMIN" || role === "ASSET_MANAGER";
@@ -29,6 +32,17 @@ export async function GET(req: Request) {
     const { page, limit } = validation.data;
     const skip = (page - 1) * limit;
 
+    const cacheKey = `${CACHE_PREFIX}${user.orgId}:${JSON.stringify({ page, limit })}`;
+    const cached = await getJsonCache<{ rows: unknown[]; total: number }>(cacheKey);
+    if (cached) {
+      return Api.ok(cached.rows, {
+        total: cached.total,
+        page,
+        limit,
+        totalPages: Math.max(1, Math.ceil(cached.total / limit)),
+      });
+    }
+
     const [rows, total] = await Promise.all([
       prisma.assetKit.findMany({
         where: { orgId: user.orgId },
@@ -46,6 +60,8 @@ export async function GET(req: Request) {
       }),
       prisma.assetKit.count({ where: { orgId: user.orgId } }),
     ]);
+
+    void setJsonCache(cacheKey, { rows, total });
 
     return Api.ok(rows, { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) });
   } catch (error) {
@@ -99,6 +115,7 @@ export async function POST(req: Request) {
       include: { _count: { select: { items: true } } },
     });
 
+    void deleteCacheByPrefix(`${CACHE_PREFIX}${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "kit.created",

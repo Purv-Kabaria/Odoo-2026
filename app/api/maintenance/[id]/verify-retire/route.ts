@@ -41,6 +41,16 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
     });
     if (!request_) return Api.notFound("Maintenance request not found");
 
+    // Retirement is only valid as the final step of report -> approve ->
+    // assign -> progress -> resolve -> verify-retire — without this check
+    // any maintenance request (even PENDING or REJECTED) could be used as
+    // the pretext to retire an asset that was never actually resolved.
+    if (request_.status !== "RESOLVED") {
+      return Api.badRequest(
+        "This maintenance request must be Resolved before the asset can be retired",
+      );
+    }
+
     if (!canManuallyTransitionAssetStatus(request_.asset.status)) {
       return Api.badRequest(
         `Cannot retire this asset while it is ${request_.asset.status.toLowerCase().replace("_", " ")} — it must be Available, Retired, or Disposed first.`,

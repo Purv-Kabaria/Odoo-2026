@@ -4,7 +4,7 @@ export const AssetListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().max(200).default(""),
-  category: z.string().trim().max(60).optional(),
+  category: z.string().trim().uuid().optional(),
   status: z
     .enum(["AVAILABLE", "ALLOCATED", "RESERVED", "UNDER_MAINTENANCE", "LOST", "RETIRED", "DISPOSED"])
     .optional(),

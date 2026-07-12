@@ -3,7 +3,6 @@
 import * as React from "react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { readApiResponse } from "@/lib/api-client";
 
@@ -126,7 +126,7 @@ export function CreateKitModal({
                       {a.assetTag} — {a.name}
                     </span>
                     {a.status !== "AVAILABLE" && (
-                      <Badge variant="secondary" className="text-xs">{a.status.replace("_", " ").toLowerCase()}</Badge>
+                      <StatusBadge kind="assetStatus" status={a.status} className="text-xs" />
                     )}
                   </label>
                 ))

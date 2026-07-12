@@ -60,7 +60,11 @@ function SelectTrigger({
 function SelectContent({
   className,
   children,
-  position = "item-aligned",
+  // "popper" (not Radix's "item-aligned" default) so the popover is always
+  // at least as wide as the trigger — item-aligned only guarantees the
+  // selected item lines up with the trigger, not that the whole popover
+  // matches its width.
+  position = "popper",
   align = "center",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {

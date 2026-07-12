@@ -1,16 +1,20 @@
 # AssetFlow
 
+![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white) ![Prisma 6](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white) ![PostgreSQL 15+](https://img.shields.io/badge/PostgreSQL-15+-4169E1?logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-cache--aside-DC382D?logo=redis&logoColor=white) ![Meilisearch](https://img.shields.io/badge/Meilisearch-typo--tolerant-FF5CAA?logo=meilisearch&logoColor=white) ![No CI](https://img.shields.io/badge/CI-none%20by%20design-lightgrey)
+
 **AssetFlow** is an enterprise asset-management system: register and track physical assets (with QR-code lookup), allocate them individually or in bulk kits to employees or departments, resolve allocation conflicts through transfer requests, book shared resources on a conflict-free calendar with enforced check-in, run an AI-assisted maintenance workflow, audit inventory against expected holders, and report on utilization and spend — all behind real session auth and role-based access control.
 
 Built on Next.js 16, Prisma 6, and PostgreSQL, with Redis, Meilisearch, and S3-compatible object storage baked in as optional accelerators (never hard dependencies). There is intentionally no CI/CD, no test runner, no Husky, no lint-staged, and no commitlint — this project is optimized for fast local iteration: run the app, click through it, and use `pnpm lint`, `pnpm typecheck`, and `pnpm build` as your manual quality gate before committing.
 
-> **Demoing this?** See [`docs/demo-script.md`](./docs/demo-script.md) for a 5-minute, screen-recording-ready walkthrough of every screen and its edge cases.
+> **Demoing this?** See [`docs/demo-script.md`](./docs/demo-script.md) for a 6-minute, screen-recording-ready walkthrough of every screen and its edge cases.
 
 ## Table of contents
 
 - [Screens](#screens)
-- [Feature tour](#feature-tour)
+- [Feature matrix — brief-mandated vs. team-added](#feature-matrix--brief-mandated-vs-team-added)
+- [Role & permission matrix](#role--permission-matrix)
 - [Architecture](#architecture)
+- [Key workflows](#key-workflows)
 - [Database design](#database-design)
 - [Why these choices? (caching, search, indexing)](#why-these-choices-caching-search-indexing)
 - [Stack](#stack)
@@ -30,28 +34,56 @@ Built on Next.js 16, Prisma 6, and PostgreSQL, with Redis, Meilisearch, and S3-c
 | ![Audit Cycles](./docs/screenshots/05-audit-cycles.png) **Audit Cycles** — scope an audit, verify assets, auto-raise maintenance on damage. | ![Reports](./docs/screenshots/06-reports-dashboard.png) **Reports** — KPIs, charts, and compact-by-default tables with a Vercel-style expand toggle. |
 | ![Admin panel](./docs/screenshots/07-admin.png) **Admin** — role management, org-wide entity control. | ![Notifications](./docs/screenshots/08-notifications.png) **Notifications** — live, categorized, pushed over SSE. |
 | ![Maintenance on mobile](./docs/screenshots/09-maintenance-mobile.png) **Fully responsive** — the Kanban board (the hardest layout to shrink) at 390px wide. | ![Users directory](./docs/screenshots/10-users.png) **Users** — the generic entity-CRUD engine, reused across Users/Organizations/Departments. |
+| ![Ctrl+K global search](./docs/screenshots/11-global-search.png) **Ctrl+K Global Search** — grouped, debounced, Meilisearch-backed results across assets/employees/departments/organizations, org-scoped inside the search index itself. | |
 
-## Feature tour
+## Feature matrix — brief-mandated vs. team-added
 
-| Screen | What it does |
-| --- | --- |
-| **Auth** | Self-signup goes to `PENDING_APPROVAL` until an Admin approves it; an admin-issued invite auto-activates on password set (inviting a specific person *is* the vetting step). Session cookies are opaque random tokens, hashed at rest, `httpOnly`. |
-| **Admin / Users** | Manage users, roles, and org/department membership; approve pending signups; invite new users by email (Nodemailer, console-mock if SMTP isn't configured). |
-| **Asset Directory** | Register assets (auto-generated `AF-####` tags, race-safe under concurrent registration), category-specific custom fields, photo upload, full-text + fuzzy search, filter by category/status/department/location. A camera-based QR scanner (`html5-qrcode`, with proper permission handling) populates the search bar directly from a scanned code instead of typing a tag/serial by hand. |
-| **Asset Kits** | Bundle multiple assets into a reusable kit and allocate the whole kit to an employee or department in one action. Every asset in the kit is validated as available before anything commits — if even one is already held, the whole operation is blocked and the conflicting asset is named, exactly like the single-asset conflict flow. Each asset in the kit still gets its own individual `Allocation` row and history, linked back to the batch `KitAllocation`. |
-| **Allocation & Transfer** | Allocate an asset (or a kit) to an employee or department; attempting to double-allocate surfaces a conflict banner naming the current holder, with a one-click transfer request instead of a raw error. Transfers are approved by a Department Head (scoped to their own department) or an Asset Manager/Admin. |
-| **Resource Booking** | Book shared/bookable assets (meeting rooms, vehicles, equipment) on a day timeline with a live conflict preview; overlap is enforced by a Postgres GiST exclusion constraint, not just an app-layer check. Every booking carries a 15-minute check-in deadline from its start time — a CRON sweep nudges the booker at the 10–15 minute mark, then (if still not checked in) extends a one-time 5-minute grace period with a second notification, and auto-cancels the booking to free the resource if that grace period also lapses. |
-| **Maintenance** | Drag-and-drop Kanban (Pending → Approved → Technician Assigned → In Progress → Resolved, plus a computed Retired column) built with `dnd-kit`. Resolving a request fires a non-blocking LLM call that evaluates acquisition cost, maintenance history, and the issue description, and flags assets worth retiring; a manager-only "Verify & Retire" action closes the loop by globally retiring the asset. |
-| **Audit Cycles** | Scope an audit to a department or location, assign auditors, verify assets against expected holders, and auto-raise a maintenance request when an item is found damaged. |
-| **Reports** | Org-wide KPIs, utilization by department, maintenance frequency, most-used/idle/near-retirement assets, spend by category, and a booking heatmap — Redis-cached with a short TTL, CSV export per section, tables compact-by-default with a Vercel-dashboard-style expand toggle per table. |
-| **Notifications** | Per-user notification bell + panel (alerts/approvals/bookings categories, keyset-paginated), pushed live over SSE via Redis pub/sub, backed by a durable Postgres table so nothing's lost if you weren't connected when it fired. A set of CRON sweeps (`node-cron`, registered once per server process via `instrumentation.ts`) generate time-based notifications no user action would otherwise trigger: booking-ending-soon reminders, booking check-in nudges/grace-period/auto-cancel, and overdue-return alerts. |
-| **Voice input** | Native Web Speech API dictation (mic button, live transcription, append-mode, graceful degradation with a toast when unsupported or denied) — built as one reusable hook + button, wired into the maintenance issue description and the asset-return condition notes. |
+Every row cites the actual mechanism and the file it lives in, not just a description — this is the "how it was engineered" reference, not a marketing list. **Source** is `Brief` for something the hackathon problem statement asked for, `Team` for something added beyond it.
 
-Role model: `ADMIN` (everything) > `ASSET_MANAGER` (assets/allocations/bookings/maintenance/reports, org-wide) > `DEPARTMENT_HEAD` (approvals scoped to their own department) > `EMPLOYEE` (self-service booking, raising maintenance, viewing their own allocations).
+| Area | Feature | Source | Engineering | Where |
+| --- | --- | --- | --- | --- |
+| Auth | Non-self-elevating accounts | Brief | Signup always lands in `PENDING_APPROVAL`; role promotion is a single ADMIN-only endpoint with a self-demotion guard | `app/api/users/[id]/{approve,role}/route.ts` |
+| Auth | Session re-validation per request | Brief | `getCurrentUser()` re-checks a hashed token against Postgres on every protected request; the edge `proxy.ts` cookie check is UX-only | `app/(protected)/layout.tsx`, `lib/auth.ts` |
+| Auth | Password security | Brief (implied) | PBKDF2-SHA256, 210,000 iterations, per-user salt, `timingSafeEqual` compare (no timing side-channel) | `lib/password.ts` |
+| Org setup | Department hierarchy | Brief | Self-relation `parentDepartmentId`; edits cascade live into the asset and allocation picklists (live FK, never a cached name string) | `prisma/schema.prisma` |
+| Org setup | Category-specific custom fields | Brief | JSON column on `Asset`, validated at write time against the category's declared field schema — no EAV table explosion | `app/api/assets/route.ts` |
+| Assets | Auto-generated tags | Brief | Sequential `AF-####`, atomic `Organization.assetSeq` increment inside the create transaction — two concurrent registrations can't collide | `app/api/assets/route.ts` |
+| Assets | Full-text + fuzzy search | Brief | Meilisearch primary (typo-tolerant), Postgres `pg_trgm` GIN-indexed fallback if Meilisearch is down | `lib/meilisearch.ts` |
+| Assets | Camera QR scanning | **Team** — brief only asked for a QR *field*, not a scan workflow | `html5-qrcode` in-browser camera scan feeds the result straight into the search bar | Asset Directory search bar |
+| Allocation | No double-allocation | Brief | Partial unique index `WHERE status = 'ACTIVE'` on `Allocation` — structurally impossible, not just app-checked | `prisma/schema.prisma` |
+| Allocation | Transfer request workflow | Brief | `Requested → Approved/Rejected`, approval scoped to the current holder's department for a Department Head | `app/api/transfers/*` |
+| Allocation | Asset Kits | **Team** — not in the brief at all | Bulk-allocate N assets to one holder atomically; every asset validated available up front, each still gets its own `Allocation` row linked to a batch `KitAllocation` | `app/api/kits/*` |
+| Booking | No overlapping bookings | Brief | GiST exclusion constraint, half-open interval — a booking ending at `T` and one starting at `T` don't conflict | `prisma/schema.prisma` |
+| Booking | Check-in deadline, grace period, auto-cancel | **Team** — brief only asked for a pre-slot reminder | 15-minute check-in deadline from start time, one 5-minute grace extension, then a CRON sweep auto-cancels and frees the resource | `lib/cron/booking-checkin-sweep.ts` |
+| Maintenance | Kanban approval workflow | Brief | 5-stage FSM (`Pending → Approved → Technician Assigned → In Progress → Resolved`); asset status is a *derived side effect* of the card, never independently editable while a request is open | `app/api/maintenance/*` |
+| Maintenance | AI retirement recommendation | **Team** — not in the brief | Non-blocking LLM call on resolve, wrapped in timeout/retry/circuit-breaker, evaluates cost + history; manager reviews and retires globally with one click | `lib/maintenance-retirement.ts`, `lib/resilience.ts` |
+| Maintenance | Voice dictation | **Team** — not in the brief | One reusable Web Speech API hook + button, used on the issue description and return-condition notes, degrades gracefully without browser support | `hooks/use-speech-to-text.ts` |
+| Audit | Discrepancy reports | Brief | Auto-raises a maintenance request on a confirmed Damaged item; Missing flips the asset to Lost; a frozen JSON snapshot is generated on close | `app/api/audit-cycles/[id]/close/route.ts` |
+| Audit | Guarded cycle close | Brief (robustness requirement) | A guarded `updateMany` means two admins closing the same cycle concurrently can't double-apply the Lost/maintenance side effects | same file |
+| Reports | Full analytics suite | Brief | Utilization by department, maintenance frequency, most-used/idle/near-retirement assets, booking heatmap, department allocation summary | `lib/reports/queries.ts` |
+| Reports | Redis-cached, CSV export | Brief (implied "export") / Team (caching choice) | 60-second cache-aside TTL so the dashboard stays fast under load; every table exports to CSV regardless of collapsed/expanded state | `app/api/reports/route.ts` |
+| Notifications | Real-time delivery | Brief (implied "get notified") | Server-sent events pushed via Redis pub/sub, backed by a durable Postgres row so nothing's lost if the client wasn't connected | `lib/notifications.ts`, `lib/redis-pubsub.ts` |
+| Notifications | Activity log vs. personal inbox split | Brief | Two distinct concepts sharing one event pipeline: an immutable org-wide audit trail and a per-user read/unread inbox | `lib/activity-events.ts` |
+| Search | Ctrl+K global command palette | **Team** — not in the brief | Debounced, grouped, keyboard-navigable search across assets/employees/departments/organizations; scoped to the caller's org *inside* the Meilisearch query itself, not just the Postgres follow-up, and to what the caller's role can already read | `app/api/search/route.ts`, `components/layout/global-search.tsx` |
 
-### In progress (not yet built)
+## Role & permission matrix
 
-- **Ctrl+K Global Search** — a Meilisearch-powered command palette (`Ctrl`/`Cmd`+`K`) searching across assets, employees, departments, and other entities at once, with grouped results and full keyboard navigation. The Shadcn `Command`/`cmdk` primitive is already in the component library; it isn't wired up to a global shortcut or a search endpoint yet.
+`ADMIN` > `ASSET_MANAGER` (org-wide, assets/allocations/bookings/maintenance/reports) > `DEPARTMENT_HEAD` (own department only) > `EMPLOYEE` (self-service). Every check is server-side, re-derived from the database role on each request — never a client-supplied field.
+
+| Capability | Admin | Asset Manager | Department Head | Employee |
+| --- | --- | --- | --- | --- |
+| Manage departments / categories / promote roles | ✅ | ❌ | ❌ | ❌ |
+| Register / edit assets | ✅ | ✅ | ❌ | ❌ |
+| Allocate assets & kits | ✅ | ✅ | ❌ | ❌ |
+| Approve transfer requests | ✅ | ✅ | ✅ (own department only) | ❌ |
+| Book shared resources | ✅ | ✅ | ✅ | ✅ |
+| Raise maintenance requests | ✅ | ✅ | ✅ | ✅ |
+| Approve / assign / resolve maintenance | ✅ | ✅ | ❌ | ❌ |
+| Verify & retire an asset | ✅ | ✅ | ❌ | ❌ |
+| Create & close audit cycles | ✅ | ✅ | ❌ | ❌ |
+| View org-wide reports | ✅ | ✅ | ❌ | ❌ |
+| View own allocations / bookings only | — | — | — | ✅ (default scope) |
+| Invite / approve users | ✅ | ❌ | ❌ | ❌ |
 
 ## Architecture
 
@@ -92,6 +124,48 @@ flowchart TB
 ```
 
 **The one rule that matters most**: only Postgres is a hard dependency. Every other box in that diagram — Redis, Meilisearch, S3, the LLM — is an accelerator with an explicit degrade path (see [Why these choices](#why-these-choices-caching-search-indexing) below). `proxy.ts` runs on the Edge runtime and does a cheap cookie-presence check for a fast redirect; it is **never** trusted as the real authorization boundary — every protected page and API route re-verifies the session against the database on every request.
+
+## Key workflows
+
+The brief's problem statement leaves several state-machine edges genuinely ambiguous (e.g. "does resolving maintenance always return an asset to Available, or to its prior holder?"). These diagrams are the actual, as-built resolution of that ambiguity — not the inferred/open-question version, the real transition graph enforced by the route handlers.
+
+### Asset lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Available: registered
+    Available --> Allocated: allocation created
+    Allocated --> Available: return, or approved transfer re-allocates
+    Available --> UnderMaintenance: maintenance request approved
+    UnderMaintenance --> Available: maintenance request resolved
+    Available --> Lost: audit cycle closes, item confirmed Missing
+    Available --> Retired: manual retire, or Verify & Retire after a Resolved maintenance request
+    Retired --> Disposed: manual dispose
+    Lost --> [*]
+    Disposed --> [*]
+```
+
+**Resolved open questions from the brief, as actually implemented:**
+- Resolving a maintenance request **always** returns the asset to `Available` — never to a prior holder. An asset already `Allocated` when a fault is reported keeps that allocation; maintenance is tracked against the asset independently, not by detaching it from its holder.
+- `Reserved` is a status that exists on the `Booking` record (`Upcoming/Ongoing/Completed/Cancelled`), not on `Asset.status` — a bookable asset stays `Available` on its own record throughout its booking lifecycle. `Asset.status` and `Booking.status` are deliberately decoupled.
+- A manual status transition (`PATCH /api/assets/:id`) is only legal from `Available` or a terminal state (`Retired`/`Disposed`) — `Allocated`/`UnderMaintenance`/`Lost` are only reachable as side effects of their own workflow endpoints, never a direct edit (`lib/assets.ts`, `MANUALLY_TRANSITIONABLE_ASSET_STATUSES`).
+
+### Maintenance approval workflow
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: raised by holder/employee
+    Pending --> Approved: Asset Manager/Admin approves — asset flips to Under Maintenance
+    Pending --> Rejected: Asset Manager/Admin rejects
+    Approved --> TechnicianAssigned: technician assigned
+    TechnicianAssigned --> InProgress: work started
+    InProgress --> Resolved: resolved — asset flips back to Available, non-blocking LLM retirement check fires
+    Resolved --> Retired: manager clicks Verify & Retire (only legal from Resolved)
+    Rejected --> [*]
+    Retired --> [*]
+```
+
+Rendered as a drag-and-drop Kanban board (`dnd-kit`) — a deliberate UI choice carried over from the mockup, not a simplification. An illegal drag (skipping a stage, or dragging backwards) is rejected client-side and the card snaps back; the drag only ever calls a route that enforces the same guarded transition server-side, so the client-side check is a UX nicety, not the actual guard.
 
 ## Database design
 
@@ -202,11 +276,13 @@ erDiagram
 
 **Invariants Prisma's schema syntax can't express live in hand-written migration SQL, not just in application code** — the database is the actual enforcement layer, application checks are a fast-path UX nicety on top:
 
-- `Allocation`: a partial unique index (`WHERE status = 'ACTIVE'`) makes double-allocation structurally impossible, not just checked-for — kit allocation reuses this exact table and constraint per asset, so a kit can't bypass the guard either.
-- `Allocation` / `KitAllocation`: a `CHECK` constraint enforces "exactly one of `toEmployeeId`/`toDepartmentId`" — never both, never neither — on both the single-asset and kit-batch-header rows.
-- `Booking`: a GiST exclusion constraint (`EXCLUDE USING gist (assetId WITH =, tsrange(startTime, endTime, '[)') WITH &&)`) makes overlapping bookings for the same asset structurally impossible under concurrent writes — an app-layer "check then insert" would have a race window, this doesn't.
-- `User`: a `CHECK` constraint enforces that any non-`PENDING_APPROVAL` user must have a password set.
-- `AuditCycle`: a `CHECK` constraint enforces `endDate >= startDate` and "scope is at most one of department/location."
+| Table | Mechanism | Guarantees |
+| --- | --- | --- |
+| `Allocation` | Partial unique index `WHERE status = 'ACTIVE'` | Double-allocation is structurally impossible, not just checked-for — `KitAllocation` reuses this exact constraint per asset, so a kit can't bypass it either |
+| `Allocation` / `KitAllocation` | `CHECK` — exactly one of `toEmployeeId`/`toDepartmentId` | Never both, never neither, on both the single-asset and kit-batch-header rows |
+| `Booking` | GiST exclusion constraint `EXCLUDE USING gist (assetId WITH =, tsrange(startTime, endTime, '[)') WITH &&)` | Overlapping bookings for the same asset are structurally impossible under concurrent writes — an app-layer "check then insert" has a race window, this doesn't |
+| `User` | `CHECK` — non-`PENDING_APPROVAL` implies a password hash exists | An account can never reach `ACTIVE`/`INACTIVE` without a password set |
+| `AuditCycle` | `CHECK` — `endDate >= startDate`, and scope is at most one of department/location | Temporal ordering and scope-exclusivity enforced before a row can ever exist |
 
 ## Why these choices? (caching, search, indexing)
 
@@ -269,20 +345,22 @@ Sequential auto-increment IDs leak business volume (a competitor watching `/asse
 
 ## Stack
 
-- **Framework**: Next.js 16 App Router, React 19, TypeScript strict mode (no `any`, no unchecked `!`).
-- **UI**: Tailwind CSS 4 (CSS-first `@theme` config), Shadcn/Radix primitives, Lucide icons, Framer Motion for purposeful micro-interactions (gated behind `prefers-reduced-motion`).
-- **Database**: PostgreSQL 15+, Prisma 6 (typed client, UUIDv7 primary keys as native `uuid` columns, hand-written migrations for constraints Prisma's schema syntax can't express).
-- **Cache**: Redis for list-endpoint cache-aside, rate limiting, idempotency keys, and pub/sub for live notifications — every Redis failure degrades soft.
-- **Search**: Meilisearch for typo-tolerant table search, with a Postgres `pg_trgm` fallback when it's unavailable.
-- **Object storage**: S3-compatible (MinIO locally) for asset photos and documents; metadata and RBAC stay in Postgres.
-- **Drag-and-drop**: `dnd-kit` for the Maintenance Kanban board.
-- **QR scanning**: `html5-qrcode`, camera-based, in the Asset Directory search bar.
-- **Voice input**: native browser `SpeechRecognition`/`webkitSpeechRecognition`, no external dependency.
-- **LLM**: one OpenAI-compatible proxy adapter (`lib/llm.ts`) with timeout/retry/circuit-breaker, used for the maintenance retirement recommendation — never called directly from a component.
-- **Email**: Nodemailer, mock/console-logging mode when SMTP isn't configured.
-- **Scheduled jobs**: `node-cron`, registered once per server process from `instrumentation.ts`, for booking reminders, check-in enforcement, and overdue-return sweeps — no separate worker deployment.
-- **Logging**: structured JSON to stdout, optional Loki push — never a bare `console.log`.
-- **Validation**: Zod is the single source of truth for both runtime validation and inferred TypeScript types across every API boundary.
+| Layer | Choice | Notes |
+| --- | --- | --- |
+| Framework | Next.js 16 App Router, React 19 | TypeScript strict mode — no `any`, no unchecked `!` |
+| UI | Tailwind CSS 4, Shadcn/Radix primitives, Lucide icons | Framer Motion for purposeful micro-interactions, gated behind `prefers-reduced-motion` |
+| Database | PostgreSQL 15+, Prisma 6 | UUIDv7 primary keys as native `uuid` columns; hand-written migrations for constraints Prisma's schema syntax can't express |
+| Cache | Redis | List-endpoint cache-aside, rate limiting, idempotency keys, pub/sub for live notifications — every failure degrades soft |
+| Search | Meilisearch | Typo-tolerant table + Ctrl+K search, with a Postgres `pg_trgm` fallback when unavailable |
+| Object storage | S3-compatible (MinIO locally) | Asset photos and documents; metadata and RBAC stay in Postgres |
+| Drag-and-drop | `dnd-kit` | Maintenance Kanban board |
+| QR scanning | `html5-qrcode` | Camera-based, in the Asset Directory search bar |
+| Voice input | Native `SpeechRecognition`/`webkitSpeechRecognition` | No external dependency |
+| LLM | One OpenAI-compatible proxy adapter (`lib/llm.ts`) | Timeout/retry/circuit-breaker; used for maintenance retirement recommendation; never called directly from a component |
+| Email | Nodemailer | Mock/console-logging mode when SMTP isn't configured |
+| Scheduled jobs | `node-cron` | Registered once per server process from `instrumentation.ts` — booking reminders, check-in enforcement, overdue-return sweeps; no separate worker deployment |
+| Logging | Structured JSON to stdout | Optional Loki push — never a bare `console.log` |
+| Validation | Zod | Single source of truth for both runtime validation and inferred TypeScript types across every API boundary |
 
 ## Local setup
 
@@ -354,10 +432,11 @@ Keep this table in sync with `package.json` — a script that isn't documented d
 ```text
 app/            Routes, layouts, route handlers, error/loading boundaries.
   api/          Route handlers only — no business logic lives in components.
-  (protected)/  Route group requiring an authenticated session (app/(protected)/layout.tsx is the real authz boundary; proxy.ts is a cheap edge-level redirect for UX only).
+  (public)/     Landing, login, signup, forgot/reset password — Navbar + Footer chrome.
+  (protected)/  Route group requiring an authenticated session (app/(protected)/layout.tsx is the real authz boundary AND owns the sidebar app shell; proxy.ts is a cheap edge-level redirect for UX only).
 components/
   ui/           Shadcn primitives — extend, don't fork.
-  layout/       Navbar, footer, app chrome.
+  layout/       Sidebar (primary nav for authenticated screens) + AppTopbar (search/notifications) for (protected)/; Navbar + Footer for (public)/.
   forms/ modals/ tables/ pages/  Feature-organized, never dumped at components/ root.
 hooks/          Client hooks: data sync, media queries, reusable stateful logic (e.g. useSpeechToText).
 lib/            Server + shared utilities: prisma client, auth, api envelope, logger, search, Redis cache, LLM adapter, resilience (timeout/retry/circuit-breaker), query builders, env validation, rate limiting.
@@ -369,11 +448,16 @@ docs/           Demo script, screenshots, design references.
 
 ## Security model
 
-- Sessions are random opaque tokens, stored **hashed** (`sha256`); the raw token only ever exists in the `httpOnly` cookie and the response that sets it.
-- Passwords are PBKDF2-SHA256 at 210,000 iterations with a per-user salt, verified with `timingSafeEqual`.
-- Every protected page and API route re-verifies the session against the database — the edge proxy's cookie-presence check is a UX convenience only, never the authorization boundary.
-- Role checks are always server-side, using the role loaded fresh from the DB in the current request — never a client-supplied field.
-- Every multi-tenant table is scoped to the caller's `orgId` at the query layer (`EntityConfig.tenantScope` for the generic CRUD engine, explicit `where: { orgId }` everywhere else) — this is the top security invariant in a multi-tenant app and the first thing to check when adding a new table or route.
+| Control | Mechanism |
+| --- | --- |
+| Session tokens | Random opaque tokens, stored **hashed** (`sha256`) — the raw token only ever exists in the `httpOnly` cookie and the response that sets it |
+| Passwords | PBKDF2-SHA256, 210,000 iterations, per-user salt, verified with `timingSafeEqual` (no timing side-channel) |
+| Route protection | Every protected page and API route re-verifies the session against the database — the edge proxy's cookie-presence check is UX only, never the authorization boundary |
+| Role checks | Always server-side, using the role loaded fresh from the DB on the current request — never a client-supplied field |
+| Multi-tenancy | Every tenant-scoped table filters on the caller's `orgId` at the query layer (`EntityConfig.tenantScope` for the generic CRUD engine, explicit `where: { orgId }` everywhere else) — the top security invariant in this app, and the first thing to check when adding a new table or route |
+| Cache-key isolation | Redis cache keys include `orgId` (and role, where results vary by role) so two tenants' identical-shaped queries can never collide on the same cache entry |
+| Search isolation | Meilisearch queries filter on `orgId` inside the search index itself, not just in the Postgres follow-up — prevents one tenant's results from crowding another's out of a shared top-N cutoff |
+| Rate limiting | Unauthenticated, state-changing endpoints (login, signup, forgot-password, reset-password) are rate-limited per IP+route; authenticated account actions (password change) are rate-limited per user, not per IP, so a stolen session can't be brute-forced by rotating source IP |
 
 See `AGENTS.md` §6 for the full model.
 

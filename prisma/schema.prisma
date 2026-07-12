@@ -459,6 +459,8 @@ model TransferRequest {
   @@index([assetId])
   @@index([toEmployeeId])
   @@index([requestedById])
+  @@index([fromEmployeeId])
+  @@index([approvedById])
   // Approver queue: open transfers by status, newest first.
   @@index([status, createdAt])
 }
@@ -502,6 +504,7 @@ model Booking {
   @@index([assetId, startTime])
   @@index([status, startTime]) // reminder sweep / lifecycle transitions
   @@index([status, checkedIn, checkInDeadline]) // check-in grace/auto-cancel sweep
+  @@index([status, endTime]) // booking-reminder sweep: ONGOING bookings ending soon
 }
 
 // ---------------------------------------------------------------------------
@@ -538,6 +541,7 @@ model MaintenanceRequest {
   @@index([assetId])
   @@index([raisedById])
   @@index([technicianId])
+  @@index([approvedById])
   // Kanban board groups by status within an org, newest first per column.
   @@index([status, createdAt])
 }
@@ -575,7 +579,10 @@ model AuditCycle {
   @@index([createdById])
   @@index([closedById])
   @@index([scopeDeptId])
-  @@index([orgId, status])
+  // List query filters orgId(+status), sorts createdAt desc — this
+  // composite prefix also serves plain orgId+status equality lookups, so it
+  // replaces a separate [orgId, status] index rather than sitting alongside it.
+  @@index([orgId, status, createdAt])
 }
 
 model AuditAssignment {
@@ -645,6 +652,10 @@ model Notification {
   // Feed: a user's notifications newest-first, plus unread badge count.
   @@index([userId, createdAt])
   @@index([userId, isRead])
+  // Per-recipient dedup check run inside the CRON sweeps
+  // (hasUnreadNotificationForEntity) — a real hot-path lookup, not
+  // speculative, since these sweeps run every few minutes.
+  @@index([userId, type, relatedEntityId, isRead])
 }
 
 model ActivityLog {
@@ -677,8 +688,12 @@ model AuthSession {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  // Active-session lookup gets a partial index (WHERE expiresAt > now) in the
-  // manual migration.
+  // Every read is by tokenHash (already @unique above); [userId] below only
+  // serves bulk operations like "revoke all my other sessions" on password
+  // change. A `WHERE expiresAt > now()` partial index isn't valid here —
+  // `now()` isn't IMMUTABLE, so Postgres rejects it as an index predicate —
+  // and nothing currently queries active sessions by userId+expiresAt, so
+  // there's nothing to add one for yet.
 
   @@index([userId])
 }

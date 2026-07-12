@@ -2,14 +2,18 @@
 
 import * as React from "react";
 import { differenceInSeconds } from "date-fns";
+import { motion } from "framer-motion";
+import { CalendarClock, CalendarPlus, CalendarX, LogIn, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BookingCheckInStatusPanel } from "@/components/pages/booking-checkin-status-panel";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { readApiResponse } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +63,8 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [checkingInId, setCheckingInId] = React.useState<string | null>(null);
   const [now, setNow] = React.useState(() => new Date());
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const itemTransition = prefersReducedMotion ? { duration: 0 } : { duration: 0.18 };
 
   React.useEffect(() => {
     fetch("/api/assets?isBookable=true&limit=100")
@@ -211,18 +217,24 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
     <main className="mx-auto w-full max-w-6xl px-3 py-6 sm:px-4 md:px-6 lg:px-8">
       <div className="mb-5 space-y-1">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Assets</p>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">Resource Booking</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          <CalendarClock className="size-6 text-primary" />
+          Resource Booking
+        </h1>
         <p className="max-w-2xl text-sm text-muted-foreground">Book shared resources by time slot with no overlaps.</p>
       </div>
 
       <div className="mb-4 flex flex-col gap-2 border border-border bg-card p-3 shadow-sm sm:flex-row sm:items-center">
-        <Select value={assetId} onValueChange={setAssetId}>
-          <SelectTrigger className="w-full cursor-pointer sm:w-64"><SelectValue placeholder="Select a resource" /></SelectTrigger>
-          <SelectContent>
-            {assets.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Input type="date" value={dateStr} onChange={(e) => setDateStr(e.target.value)} className="w-full sm:w-44" />
+        <SearchableSelect
+          value={assetId}
+          onValueChange={setAssetId}
+          options={assets.map((a) => ({ value: a.id, label: a.name }))}
+          placeholder="Select a resource"
+          emptyText="No bookable resources found."
+          className="w-full sm:w-64"
+          aria-label="Select a resource"
+        />
+        <DatePicker value={dateStr} onValueChange={setDateStr} className="w-full sm:w-44" />
       </div>
 
       <div className="mb-5 grid gap-4 lg:grid-cols-[1fr_320px]">
@@ -242,13 +254,16 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
               const top = (minutesFromDayStart(new Date(b.startTime), dayStart) / totalMinutes) * ((DAY_END_HOUR - DAY_START_HOUR) * 48);
               const height = ((new Date(b.endTime).getTime() - new Date(b.startTime).getTime()) / 60000 / totalMinutes) * ((DAY_END_HOUR - DAY_START_HOUR) * 48);
               return (
-                <div
+                <motion.div
                   key={b.id}
+                  initial={prefersReducedMotion ? undefined : { opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={itemTransition}
                   className="absolute left-16 right-2 overflow-hidden truncate rounded-md bg-primary/80 px-2 py-1 text-xs text-primary-foreground shadow-sm"
                   style={{ top: `${Math.max(0, top)}px`, height: `${Math.max(20, height)}px` }}
                 >
                   {b.title ?? "Booked"} — {b.bookedBy?.name}
-                </div>
+                </motion.div>
               );
             })}
             {conflict && (
@@ -282,6 +297,7 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
               <p className="text-xs text-destructive">This slot overlaps an existing booking.</p>
             )}
             <Button type="submit" disabled={isSubmitting || !assetId || localConflict} className="cursor-pointer">
+              <CalendarPlus className="size-4" />
               {isSubmitting ? "Booking..." : "Book slot"}
             </Button>
           </form>
@@ -289,10 +305,13 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
           <div className="mt-5">
             <h3 className="mb-2 text-sm font-semibold">My upcoming bookings</h3>
             {myBookings.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No upcoming bookings.</p>
+              <div className="flex min-h-24 flex-col items-center justify-center gap-1.5 border border-dashed border-border p-4 text-center">
+                <CalendarX className="size-5 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground">No upcoming bookings.</p>
+              </div>
             ) : (
               <ul className="space-y-2">
-                {myBookings.map((b) => {
+                {myBookings.map((b, index) => {
                   const checkInStatus = b.checkInStatus ?? "PENDING";
                   const canCheckIn =
                     checkInStatus === "PENDING" &&
@@ -305,7 +324,13 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
                   const inGrace = Boolean(b.checkInGraceExtended) && checkInStatus === "PENDING";
 
                   return (
-                    <li key={b.id} className="flex flex-col gap-2 border border-border p-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                    <motion.li
+                      key={b.id}
+                      initial={prefersReducedMotion ? undefined : { opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ ...itemTransition, delay: prefersReducedMotion ? 0 : index * 0.03 }}
+                      className="flex flex-col gap-2 border border-border p-2 text-xs sm:flex-row sm:items-center sm:justify-between"
+                    >
                       <span className="min-w-0 truncate">
                         {b.asset?.assetTag} — {new Date(b.startTime).toLocaleString()}
                       </span>
@@ -326,16 +351,18 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
                             disabled={checkingInId === b.id}
                             onClick={() => void handleCheckIn(b.id)}
                           >
+                            <LogIn className="size-3.5" />
                             {checkingInId === b.id ? "Checking in..." : "Check In"}
                           </Button>
                         )}
                         {checkInStatus !== "MISSED" && b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
                           <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => void handleCancel(b.id)}>
+                            <X className="size-3.5" />
                             Cancel
                           </Button>
                         )}
                       </div>
-                    </li>
+                    </motion.li>
                   );
                 })}
               </ul>

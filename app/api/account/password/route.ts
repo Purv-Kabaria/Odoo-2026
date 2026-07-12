@@ -9,7 +9,7 @@ import {
 } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
 import { ChangePasswordSchema } from "@/types/auth-types";
 
@@ -23,8 +23,13 @@ export async function POST(req: Request) {
     const user = await getCurrentUser();
     if (!user) return Api.unauthorized();
 
+    // Keyed on the authenticated user, not IP — IP-keying would let an
+    // attacker holding a stolen session cookie brute-force `currentPassword`
+    // past the limit simply by rotating source IP, since every new IP gets
+    // a fresh bucket. The account is the thing being attacked, so the
+    // account is what must be rate-limited.
     const rateLimit = await checkRateLimit(
-      `account-password:${getClientIp(req)}`,
+      `account-password:${user.id}`,
       CHANGE_PASSWORD_RATE_LIMIT,
       CHANGE_PASSWORD_RATE_WINDOW_MS,
     );

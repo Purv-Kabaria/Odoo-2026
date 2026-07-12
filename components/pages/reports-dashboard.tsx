@@ -2,18 +2,26 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Download, FileSpreadsheet, FileText, FileType } from "lucide-react";
 import { toast } from "sonner";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import type { ChartConfig } from "@/components/ui/chart";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { readApiResponse } from "@/lib/api-client";
+import { humanizeEnum } from "@/lib/labels";
 
 type Summary = {
   totalAssets: number;
@@ -50,9 +58,22 @@ const maintenanceChartConfig = {
   count: { label: "Requests", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
-function exportHref(report: string, filters: { idleDays: number; retirementYears: number; months: number }): string {
+type ExportFormat = "csv" | "pdf" | "docx";
+
+const EXPORT_FORMAT_OPTIONS: { format: ExportFormat; label: string; icon: typeof FileSpreadsheet }[] = [
+  { format: "csv", label: "Spreadsheet (CSV)", icon: FileSpreadsheet },
+  { format: "pdf", label: "PDF document", icon: FileText },
+  { format: "docx", label: "Word document", icon: FileType },
+];
+
+function exportHref(
+  report: string,
+  format: ExportFormat,
+  filters: { idleDays: number; retirementYears: number; months: number },
+): string {
   const params = new URLSearchParams({
     report,
+    format,
     idleDays: String(filters.idleDays),
     retirementYears: String(filters.retirementYears),
     months: String(filters.months),
@@ -60,32 +81,39 @@ function exportHref(report: string, filters: { idleDays: number; retirementYears
   return `/api/reports/export?${params.toString()}`;
 }
 
-function ExportLink({ report, filters }: { report: string; filters: { idleDays: number; retirementYears: number; months: number } }) {
-  return (
-    <a
-      href={exportHref(report, filters)}
-      className="text-xs font-medium text-primary hover:underline"
-    >
-      Export CSV
-    </a>
-  );
+/** Downloads the file via a hidden anchor instead of a raw `<a href>` navigation, so an export doesn't leave the reports page. */
+function triggerDownload(href: string) {
+  const link = document.createElement("a");
+  link.href = href;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
-function usePrefersReducedMotion(): boolean {
-  const [prefers, setPrefers] = React.useState(false);
-
-  React.useEffect(() => {
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const frame = window.requestAnimationFrame(() => setPrefers(query.matches));
-    const onChange = () => setPrefers(query.matches);
-    query.addEventListener("change", onChange);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      query.removeEventListener("change", onChange);
-    };
-  }, []);
-
-  return prefers;
+function ExportMenu({ report, filters }: { report: string; filters: { idleDays: number; retirementYears: number; months: number } }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" className="h-auto cursor-pointer gap-1 px-2 py-1 text-xs font-medium text-primary hover:text-primary">
+          <Download className="size-3.5" />
+          Export
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {EXPORT_FORMAT_OPTIONS.map(({ format, label, icon: Icon }) => (
+          <DropdownMenuItem
+            key={format}
+            className="cursor-pointer"
+            onClick={() => triggerDownload(exportHref(report, format, filters))}
+          >
+            <Icon className="size-4" />
+            {label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 const MotionTableRow = motion.create(TableRow);
@@ -181,7 +209,7 @@ function SectionCard({
     <section className="min-w-0 border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">{title}</h2>
-        <ExportLink report={exportKey} filters={filters} />
+        <ExportMenu report={exportKey} filters={filters} />
       </div>
       {children}
     </section>
@@ -326,7 +354,7 @@ export function ReportsDashboard() {
               <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs">
                 {Object.entries(data.summary.statusBreakdown).map(([status, count]) => (
                   <span key={status} className="text-foreground">
-                    {status.replace("_", " ").toLowerCase()}: <span className="font-medium">{count}</span>
+                    {humanizeEnum(status)}: <span className="font-medium">{count}</span>
                   </span>
                 ))}
               </div>

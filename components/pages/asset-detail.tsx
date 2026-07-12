@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { formatTableDate } from "@/lib/date-format";
+import { humanizeEnum } from "@/lib/labels";
 
 type Allocation = {
   id: string;
@@ -49,13 +50,15 @@ export function AssetDetail({ asset }: { asset: Asset; canManage: boolean }) {
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">{asset.name}</h1>
           <p className="text-sm text-muted-foreground">{asset.category.name}</p>
         </div>
-        <Badge className="w-fit">{asset.status.replace("_", " ")}</Badge>
+        <StatusBadge kind="assetStatus" status={asset.status} className="w-fit" />
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-3 border border-border bg-card p-4 shadow-sm sm:grid-cols-4">
         <div>
           <p className="text-xs text-muted-foreground">Condition</p>
-          <p className="text-sm font-medium">{asset.condition}</p>
+          <p className="text-sm font-medium">
+            <StatusBadge kind="assetCondition" status={asset.condition} />
+          </p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Location</p>
@@ -84,7 +87,8 @@ export function AssetDetail({ asset }: { asset: Asset; canManage: boolean }) {
                   <span className="font-medium">{a.toEmployee?.name ?? a.toDepartment?.name}</span>
                   {a.returnedAt && (
                     <span className="text-muted-foreground">
-                      {" "}— Returned {formatTableDate(a.returnedAt)} (condition: {a.returnCondition?.toLowerCase()})
+                      {" "}— Returned {formatTableDate(a.returnedAt)}
+                      {a.returnCondition ? ` (condition: ${humanizeEnum(a.returnCondition)})` : ""}
                     </span>
                   )}
                 </li>
@@ -102,7 +106,7 @@ export function AssetDetail({ asset }: { asset: Asset; canManage: boolean }) {
               {asset.maintenanceRequests.map((m) => (
                 <li key={m.id} className="text-sm">
                   <span className="text-muted-foreground">{formatTableDate(m.createdAt)}</span> — {m.description}{" "}
-                  <Badge variant="outline" className="ml-1">{m.status.replace("_", " ")}</Badge>
+                  <StatusBadge kind="maintenanceStatus" status={m.status} className="ml-1" />
                 </li>
               ))}
             </ul>

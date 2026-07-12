@@ -23,6 +23,11 @@ export async function PATCH(
 
     const { id } = await props.params;
 
+    // Prevent self-demotion, which could leave an org with zero admins
+    if (id === actor.id) {
+      return Api.badRequest("You cannot change your own role");
+    }
+
     // Fetch the target user and verify tenant boundary
     const targetUser = await prisma.user.findFirst({
       where: { id, orgId: actor.orgId },

@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { readApiResponse } from "@/lib/api-client";
 
 type UserOption = { id: string; name: string; email: string };
@@ -77,12 +77,14 @@ export function AssignTechnicianModal({
         <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3">
           <div className="grid gap-2">
             <Label htmlFor="assign-technician">Technician</Label>
-            <Select value={technicianId} onValueChange={setTechnicianId}>
-              <SelectTrigger id="assign-technician" className="cursor-pointer"><SelectValue placeholder="Select a user" /></SelectTrigger>
-              <SelectContent>
-                {users.map((u) => <SelectItem key={u.id} value={u.id}>{u.name} ({u.email})</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              id="assign-technician"
+              value={technicianId}
+              onValueChange={setTechnicianId}
+              options={users.map((u) => ({ value: u.id, label: `${u.name} (${u.email})` }))}
+              placeholder="Select a user"
+              emptyText="No users found."
+            />
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting || !technicianId} className="cursor-pointer">

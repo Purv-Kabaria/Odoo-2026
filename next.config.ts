@@ -29,6 +29,14 @@ const nextConfig: NextConfig = {
   // only includes the production dependencies actually reachable from the
   // build's dependency trace. Required for the lean multi-stage Dockerfile.
   output: 'standalone',
+  // pdfmake's PDF generation depends on pdfkit, which loads its bundled
+  // standard-14 font metrics (.afm files) via an __dirname-relative
+  // fs.readFileSync at runtime. Bundling it into the route handler's
+  // Turbopack/webpack chunk breaks that relative path (ENOENT on the
+  // .afm file); keeping it external means Next.js require()s it straight
+  // from node_modules instead, and file-tracing for `output: standalone`
+  // still picks up its on-disk assets correctly.
+  serverExternalPackages: ['pdfmake', 'pdfkit'],
   async headers() {
     return [
       {

@@ -5,6 +5,7 @@ import { getIdempotentResponse, idempotencyKeyFor, setIdempotentResponse } from 
 import { logger } from "@/lib/logger";
 import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
+import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { z } from "zod";
 
 const IdSchema = z.object({ id: z.string().uuid() });
@@ -90,8 +91,18 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       return { cycle: await tx.auditCycle.findUnique({ where: { id: cycle.id } }), report };
     });
 
-    if (!result) return Api.ok(cycle);
+    // `result` is null only when the guarded update lost a race against a
+    // concurrent close — the cycle IS closed now (by the other request),
+    // just not by this one. Report it as a conflict rather than returning
+    // the pre-transaction `cycle` object, which would misrepresent the
+    // cycle as still open and omit the discrepancy report that now exists.
+    if (!result) {
+      return Api.conflict("This audit cycle was just closed by another request");
+    }
 
+    if (missingItems.length > 0) {
+      void deleteCacheByPrefix(`assets:list:${user.orgId}:`);
+    }
     void recordActivityEvent({
       orgId: user.orgId,
       action: "audit.cycle_closed",

@@ -69,6 +69,18 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     if (!kit) return Api.notFound("Kit not found");
     if (kit.items.length === 0) return Api.badRequest("This kit has no assets to allocate");
 
+    // The target must belong to the caller's own org — otherwise this
+    // amplifies the single-asset cross-tenant allocation risk across every
+    // asset in the kit in one call.
+    if (toEmployeeId) {
+      const targetEmployee = await prisma.user.findFirst({ where: { id: toEmployeeId, orgId: user.orgId } });
+      if (!targetEmployee) return Api.badRequest("Target employee not found in your organization");
+    }
+    if (toDepartmentId) {
+      const targetDepartment = await prisma.department.findFirst({ where: { id: toDepartmentId, orgId: user.orgId } });
+      if (!targetDepartment) return Api.badRequest("Target department not found in your organization");
+    }
+
     const assets = kit.items.map((i) => i.asset);
     const assetIds = assets.map((a) => a.id);
 
@@ -144,6 +156,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     });
 
     void deleteCacheByPrefix(`assets:list:${user.orgId}:`);
+    void deleteCacheByPrefix(`allocations:list:${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "kit.allocated",

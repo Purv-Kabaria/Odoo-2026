@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -115,11 +116,16 @@ export function CreateAuditCycleModal({
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
               <Label htmlFor="audit-start">Start date</Label>
-              <Input id="audit-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+              <DatePicker id="audit-start" value={startDate} onValueChange={setStartDate} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="audit-end">End date</Label>
-              <Input id="audit-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+              <DatePicker
+                id="audit-end"
+                value={endDate}
+                onValueChange={setEndDate}
+                minDate={startDate ? new Date(`${startDate}T00:00:00`) : undefined}
+              />
             </div>
           </div>
 

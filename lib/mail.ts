@@ -46,12 +46,9 @@ export async function sendMail({ to, subject, html }: SendMailOptions): Promise<
   const transport = getTransport();
 
   if (!transport) {
-    // Preview mode — log the email to the console so devs can still test.
+    // Preview mode — log the email instead of sending so devs can still
+    // exercise the code path without SMTP configured.
     logger.info("mail.preview", { to, subject });
-    console.log("\n📧 EMAIL PREVIEW (SMTP not configured):");
-    console.log(`   To:      ${to}`);
-    console.log(`   Subject: ${subject}`);
-    console.log(`   Body:    (HTML content — check logs)\n`);
     return true;
   }
 

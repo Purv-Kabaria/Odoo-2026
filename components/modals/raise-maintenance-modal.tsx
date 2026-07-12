@@ -13,10 +13,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceInputButton } from "@/components/forms/voice-input-button";
 import { readApiResponse } from "@/lib/api-client";
+import { humanizeEnum } from "@/lib/labels";
 
 type Asset = { id: string; assetTag: string; name: string };
 
@@ -77,12 +79,14 @@ export function RaiseMaintenanceModal({
         <form onSubmit={(e) => void handleSubmit(e)} className="grid gap-3">
           <div className="grid gap-2">
             <Label htmlFor="maint-asset">Asset</Label>
-            <Select value={assetId} onValueChange={setAssetId}>
-              <SelectTrigger id="maint-asset" className="cursor-pointer"><SelectValue placeholder="Select an asset" /></SelectTrigger>
-              <SelectContent>
-                {assets.map((a) => <SelectItem key={a.id} value={a.id}>{a.assetTag} — {a.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              id="maint-asset"
+              value={assetId}
+              onValueChange={setAssetId}
+              options={assets.map((a) => ({ value: a.id, label: `${a.assetTag} — ${a.name}` }))}
+              placeholder="Select an asset"
+              emptyText="No assets found."
+            />
           </div>
           <div className="grid gap-2">
             <div className="flex items-center justify-between gap-2">
@@ -99,7 +103,7 @@ export function RaiseMaintenanceModal({
             <Select value={priority} onValueChange={setPriority}>
               <SelectTrigger id="maint-priority" className="cursor-pointer"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {PRIORITIES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                {PRIORITIES.map((p) => <SelectItem key={p} value={p}>{humanizeEnum(p)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

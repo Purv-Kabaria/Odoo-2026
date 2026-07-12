@@ -171,7 +171,11 @@ Read-only aggregates may cache-aside, keyed on `orgId + report + every filter`. 
 
 Activity log is an audit aid, not a source of truth. Each entry stores ids/counts/labels only — never tokens, password fields, or raw bodies.
 
----
+## Search
+
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET | `/search?q=` | any (org-scoped) | Backs the Ctrl+K command palette. Fans out to assets (any role) + users/departments/organizations (gated per that entity's own `permissions.read`) in parallel, 5 results per group. Each group tries Meilisearch first (filtered to the caller's `orgId` inside the Meilisearch query itself, not just the Postgres follow-up) and falls back to a Postgres `contains` query on Meilisearch failure, same as every other list endpoint. |
 
 ## Robustness notes
 

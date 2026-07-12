@@ -107,9 +107,15 @@ export async function configureSearchIndex(
         searchableAttributes: searchableColumns(config).map(
           (column) => column.key,
         ),
-        filterableAttributes: filterableColumns(config).map(
-          (column) => column.key,
-        ),
+        // `orgId` is always filterable even though it isn't a UI column —
+        // every multi-tenant entity's search must be able to narrow to the
+        // caller's org *before* Meilisearch's top-N cutoff is applied, or a
+        // busy multi-tenant deployment could have one org's genuine matches
+        // silently starved out by another org's higher-scoring documents.
+        filterableAttributes: [
+          'orgId',
+          ...filterableColumns(config).map((column) => column.key),
+        ],
         sortableAttributes: sortableColumns(config).map((column) => column.key),
         typoTolerance: { enabled: true },
       }),
@@ -182,6 +188,7 @@ export async function searchIds(
   config: SearchableEntity,
   query: string,
   limit: number,
+  orgId?: string,
 ): Promise<string[] | null> {
   if (!config.search) return null;
 
@@ -197,6 +204,11 @@ export async function searchIds(
         limit,
         matchingStrategy: 'all',
         showRankingScore: true,
+        // Scope to the caller's org *inside* Meilisearch, not just in the
+        // Postgres follow-up query — otherwise another tenant's
+        // higher-scoring documents can push this org's real matches past
+        // the top-N cutoff before the org filter ever gets a chance to run.
+        ...(orgId ? { filter: `orgId = "${orgId}"` } : {}),
       }),
     },
   );

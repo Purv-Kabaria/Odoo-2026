@@ -3,8 +3,11 @@ import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { deleteCacheByPrefix, getJsonCache, setJsonCache } from "@/lib/redis-cache";
 import { TransferRequestCreateSchema } from "@/types/allocation-types";
 import type { Prisma } from "@prisma/client";
+
+const CACHE_PREFIX = "transfers:list:";
 
 function canApprove(role: string): boolean {
   return role === "ADMIN" || role === "ASSET_MANAGER" || role === "DEPARTMENT_HEAD";
@@ -38,6 +41,12 @@ export async function GET(req: Request) {
       };
     }
 
+    // Cache key includes userId since a Department Head's results are
+    // scoped to the department(s) they head, which differs per caller.
+    const cacheKey = `${CACHE_PREFIX}${user.orgId}:${JSON.stringify({ userId: user.id, role: user.role, status: statusParam })}`;
+    const cached = await getJsonCache<unknown[]>(cacheKey);
+    if (cached) return Api.ok(cached);
+
     const rows = await prisma.transferRequest.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -49,6 +58,8 @@ export async function GET(req: Request) {
         requestedBy: { select: { id: true, name: true } },
       },
     });
+
+    void setJsonCache(cacheKey, rows);
 
     return Api.ok(rows);
   } catch (error) {
@@ -72,6 +83,11 @@ export async function POST(req: Request) {
     const asset = await prisma.asset.findFirst({ where: { id: assetId, orgId: user.orgId } });
     if (!asset) return Api.notFound("Asset not found");
 
+    // The transfer target must belong to the caller's own org — otherwise
+    // an asset could be transferred to a foreign-org employee.
+    const targetEmployee = await prisma.user.findFirst({ where: { id: toEmployeeId, orgId: user.orgId } });
+    if (!targetEmployee) return Api.badRequest("Target employee not found in your organization");
+
     const activeAllocation = await prisma.allocation.findFirst({ where: { assetId, status: "ACTIVE" } });
     if (!activeAllocation) return Api.badRequest("This asset is not currently allocated to anyone");
 
@@ -85,6 +101,7 @@ export async function POST(req: Request) {
       },
     });
 
+    void deleteCacheByPrefix(`${CACHE_PREFIX}${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "transfer.requested",

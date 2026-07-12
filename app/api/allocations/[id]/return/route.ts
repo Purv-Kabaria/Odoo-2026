@@ -58,6 +58,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     if (!updated) return Api.badRequest("This allocation has already been returned");
 
     void deleteCacheByPrefix(`assets:list:${user.orgId}:`);
+    void deleteCacheByPrefix(`allocations:list:${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "asset.returned",

@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { readApiResponse } from "@/lib/api-client";
+import { humanizeEnum } from "@/lib/labels";
 
 type Category = { id: string; name: string; fieldSchema?: unknown };
 
@@ -124,7 +125,7 @@ export function AssetFormModal({
               <Select value={condition} onValueChange={setCondition}>
                 <SelectTrigger id="asset-condition" className="cursor-pointer"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CONDITIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {CONDITIONS.map((c) => <SelectItem key={c} value={c}>{humanizeEnum(c)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

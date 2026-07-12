@@ -20,7 +20,7 @@ import type { Role } from '@prisma/client';
 import { getDelegate } from './prisma-delegate';
 import type { FilterRuleInput, SortRuleInput } from './query';
 import { buildOrderBy, buildWhere, parseListQuery } from './query';
-import { canPerform } from './types';
+import { canPerform, editableColumns } from './types';
 import type { EntityColumn, EntityConfig } from './types';
 
 const EntityIdSchema = z.object({ id: z.string().uuid('Invalid identifier') });
@@ -57,6 +57,27 @@ function isRestrictedFieldAllowed(config: EntityConfig, role: string): boolean {
 }
 
 /**
+ * `config.schema` (e.g. `UserWriteSchema`) validates shape/type for a field
+ * even when that field isn't meant to be settable through the generic
+ * create/update path (e.g. `User.orgId`/`status` exist on the schema so
+ * other code can round-trip a full row, but aren't declared as `columns`
+ * here). Writing `validation.data` verbatim would be mass assignment —
+ * every generic write is narrowed to just the declared editable columns
+ * before it reaches Prisma, per AGENTS.md §2.
+ */
+function pickEditableFields(
+  config: EntityConfig,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  const allowedKeys = new Set(editableColumns(config).map((column) => column.key));
+  const picked: Record<string, unknown> = {};
+  for (const key of Object.keys(data)) {
+    if (allowedKeys.has(key)) picked[key] = data[key];
+  }
+  return picked;
+}
+
+/**
  * ANDs `config.tenantScope` (if any) into a where clause without risking a
  * key collision with the caller-built clause — every generic operation
  * (list/count/update/delete) must go through this, since the delegate is a
@@ -81,6 +102,7 @@ export function invalidateEntityListCache(config: EntityConfig): Promise<void> {
 
 function entityCacheKey(
   config: EntityConfig,
+  orgId: string,
   role: Role,
   input: {
     page: number;
@@ -90,7 +112,12 @@ function entityCacheKey(
     sorts: SortRuleInput[];
   },
 ): string {
+  // orgId MUST be part of the key: every registered entity is tenant-scoped
+  // (see `withTenantScope`), so a key missing it would let two different
+  // orgs' identical-shaped queries (e.g. both loading page 1, no filters)
+  // collide on the same cache entry and leak rows across tenants.
   const payload = JSON.stringify({
+    orgId,
     role,
     page: input.page,
     limit: input.limit,
@@ -167,7 +194,7 @@ export function createCollectionHandlers(config: EntityConfig) {
 
       const { page, limit, search, filters, sorts } = parsed;
       const skip = (page - 1) * limit;
-      const cacheKey = entityCacheKey(config, user.role, {
+      const cacheKey = entityCacheKey(config, user.orgId, user.role, {
         page,
         limit,
         search,
@@ -294,7 +321,7 @@ export function createCollectionHandlers(config: EntityConfig) {
 
       const delegate = getDelegate(config);
       const created = await delegate.create({
-        data: validation.data as Record<string, unknown>,
+        data: pickEditableFields(config, validation.data as Record<string, unknown>),
       });
 
       void upsertInSearch(config, [created]);
@@ -512,7 +539,7 @@ export function createItemHandlers(config: EntityConfig) {
 
       const updated = await delegate.update({
         where: { id: idResult.data.id },
-        data: validation.data as Record<string, unknown>,
+        data: pickEditableFields(config, validation.data as Record<string, unknown>),
       });
 
       void upsertInSearch(config, [updated]);

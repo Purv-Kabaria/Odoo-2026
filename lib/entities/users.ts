@@ -61,6 +61,10 @@ export const usersEntityConfig: EntityConfig = {
       sortable: true,
       filterable: true,
       visibleByDefault: true,
+      // Status transitions go through the dedicated approve/status routes
+      // (ADMIN-only, with a self-modification guard) — never the generic
+      // create/update path, which has no such guard.
+      editable: false,
     },
     {
       key: 'createdAt',

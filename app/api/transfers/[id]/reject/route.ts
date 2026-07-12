@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
+import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { z } from "zod";
 import type { User } from "@prisma/client";
 
@@ -55,6 +56,7 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
     });
     if (result.count !== 1) return Api.badRequest("This transfer has already been decided");
 
+    void deleteCacheByPrefix(`transfers:list:${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "transfer.rejected",

@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceInputButton } from "@/components/forms/voice-input-button";
 import { readApiResponse } from "@/lib/api-client";
+import { humanizeEnum } from "@/lib/labels";
 
 const CONDITIONS = ["NEW", "GOOD", "FAIR", "POOR", "DAMAGED"];
 
@@ -77,7 +78,7 @@ export function ReturnAllocationModal({
             <Select value={returnCondition} onValueChange={setReturnCondition}>
               <SelectTrigger id="return-condition" className="cursor-pointer"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {CONDITIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                {CONDITIONS.map((c) => <SelectItem key={c} value={c}>{humanizeEnum(c)}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

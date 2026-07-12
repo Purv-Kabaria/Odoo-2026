@@ -1,8 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "framer-motion";
+import { CalendarCheck, CheckCircle2, Clock, Radio, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { readApiResponse } from "@/lib/api-client";
 
 type CheckInStatus = "CHECKED_IN" | "PENDING" | "MISSED";
@@ -17,16 +20,17 @@ type OrgBooking = {
 
 const POLL_INTERVAL_MS = 20_000;
 
-function StatusBadge({ status }: { status: CheckInStatus }) {
-  if (status === "CHECKED_IN") return <Badge variant="secondary">Checked In</Badge>;
-  if (status === "MISSED") return <Badge variant="destructive">Missed</Badge>;
-  return <Badge variant="outline">Pending</Badge>;
+function CheckInStatusBadge({ status }: { status: CheckInStatus }) {
+  if (status === "CHECKED_IN") return <Badge variant="secondary"><CheckCircle2 data-icon="inline-start" />Checked In</Badge>;
+  if (status === "MISSED") return <Badge variant="destructive"><XCircle data-icon="inline-start" />Missed</Badge>;
+  return <Badge variant="outline"><Clock data-icon="inline-start" />Pending</Badge>;
 }
 
 export function BookingCheckInStatusPanel() {
   const [bookings, setBookings] = React.useState<OrgBooking[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const load = React.useCallback(async () => {
     try {
@@ -53,8 +57,14 @@ export function BookingCheckInStatusPanel() {
   return (
     <section className="border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">Today&apos;s check-in status</h2>
-        <Badge variant="outline">Live</Badge>
+        <h2 className="flex items-center gap-2 text-sm font-semibold">
+          <CalendarCheck className="size-4 text-primary" />
+          Today&apos;s check-in status
+        </h2>
+        <Badge variant="outline">
+          <Radio data-icon="inline-start" className="text-emerald-500" />
+          Live
+        </Badge>
       </div>
 
       {isLoading ? (
@@ -62,7 +72,10 @@ export function BookingCheckInStatusPanel() {
       ) : error ? (
         <p className="text-xs text-destructive">{error}</p>
       ) : bookings.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No bookings scheduled for today.</p>
+        <div className="flex min-h-20 flex-col items-center justify-center gap-1.5 text-center">
+          <CalendarCheck className="size-5 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">No bookings scheduled for today.</p>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -75,15 +88,24 @@ export function BookingCheckInStatusPanel() {
               </tr>
             </thead>
             <tbody>
-              {bookings.map((b) => (
-                <tr key={b.id} className="border-b border-border last:border-0">
+              {bookings.map((b, index) => (
+                <motion.tr
+                  key={b.id}
+                  initial={prefersReducedMotion ? undefined : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0 : 0.15,
+                    delay: prefersReducedMotion ? 0 : Math.min(index, 10) * 0.02,
+                  }}
+                  className="border-b border-border last:border-0"
+                >
                   <td className="min-w-0 truncate py-1.5 pr-2">{b.asset.assetTag}</td>
                   <td className="min-w-0 truncate py-1.5 pr-2">{b.bookedBy.name}</td>
                   <td className="py-1.5 pr-2 whitespace-nowrap">{new Date(b.startTime).toLocaleTimeString()}</td>
                   <td className="py-1.5 pr-2">
-                    <StatusBadge status={b.checkInStatus} />
+                    <CheckInStatusBadge status={b.checkInStatus} />
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>

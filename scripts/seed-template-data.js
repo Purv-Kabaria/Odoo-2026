@@ -150,7 +150,7 @@ async function main() {
   ]);
 
   // ---------------------------------------------------------------------
-  // Assets — 30 total, 25 individually-allocatable + 5 bookable
+  // Assets — 31 total, 26 individually-allocatable + 5 bookable
   // ---------------------------------------------------------------------
   async function nextTag() {
     const updated = await prisma.organization.update({
@@ -177,13 +177,18 @@ async function main() {
     { name: "Filing Cabinet", categoryId: furniture.id, condition: "POOR", location: "Warehouse", acquisitionDate: daysAgo(2555), acquisitionCost: 150 }, // 12
     { name: "Ergonomic Chair", categoryId: furniture.id, condition: "NEW", location: "HQ Floor 1", acquisitionDate: daysAgo(90), acquisitionCost: 450 }, // 13
     { name: "Conference Table", categoryId: furniture.id, condition: "GOOD", location: "HQ Floor 1", acquisitionDate: daysAgo(1460), acquisitionCost: 2000 }, // 14
-    { name: "Ford Transit Delivery Van", categoryId: vehicles.id, condition: "FAIR", location: "HQ Garage", acquisitionDate: daysAgo(1825), acquisitionCost: 28000 }, // 15
+    // Untouched by any allocation/booking/maintenance record below, and given
+    // a backdated createdAt (not just acquisitionDate) — the idle-assets
+    // report computes "last activity" as GREATEST(alloc, booking,
+    // maintenance, asset.createdAt), so an asset with zero history but a
+    // freshly-seeded createdAt would read as "just created", not idle.
+    { name: "Ford Transit Delivery Van", categoryId: vehicles.id, condition: "FAIR", location: "HQ Garage", acquisitionDate: daysAgo(2400), createdAt: daysAgo(400), acquisitionCost: 28000 }, // 15
     { name: "Toyota Camry Company Car", categoryId: vehicles.id, condition: "GOOD", location: "HQ Garage", acquisitionDate: daysAgo(730), acquisitionCost: 32000 }, // 16
     { name: "Warehouse Forklift", categoryId: vehicles.id, condition: "POOR", location: "Warehouse", acquisitionDate: daysAgo(2190), acquisitionCost: 18000 }, // 17
     { name: "Cisco Network Switch", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(730), acquisitionCost: 1200 }, // 18
-    { name: "Dell Server Rack", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(1095), acquisitionCost: 8500 }, // 19
-    { name: "UPS Battery Backup", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(365), acquisitionCost: 600 }, // 20
-    { name: "Wireless Router", categoryId: itEquipment.id, condition: "FAIR", location: "HQ Floor 2", acquisitionDate: daysAgo(1095), acquisitionCost: 200 }, // 21
+    { name: "Dell Server Rack", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(1095), createdAt: daysAgo(200), acquisitionCost: 8500 }, // 19 — idle: untouched, backdated
+    { name: "UPS Battery Backup", categoryId: itEquipment.id, condition: "GOOD", location: "Server Room", acquisitionDate: daysAgo(365), createdAt: daysAgo(180), acquisitionCost: 600 }, // 20 — idle: untouched, backdated
+    { name: "Wireless Router", categoryId: itEquipment.id, condition: "FAIR", location: "HQ Floor 2", acquisitionDate: daysAgo(2000), createdAt: daysAgo(300), acquisitionCost: 200 }, // 21 — idle + nearing retirement
     { name: "Desk Lamp", categoryId: officeSupplies.id, condition: "NEW", location: "Warehouse", acquisitionDate: daysAgo(60), acquisitionCost: 40 }, // 22
     { name: "Whiteboard", categoryId: officeSupplies.id, condition: "GOOD", location: "HQ Floor 1", acquisitionDate: daysAgo(365), acquisitionCost: 180 }, // 23
     { name: "Paper Shredder", categoryId: officeSupplies.id, condition: "FAIR", location: "HQ Floor 3", acquisitionDate: daysAgo(1460), acquisitionCost: 120 }, // 24
@@ -192,6 +197,11 @@ async function main() {
     { name: "Executive Boardroom", categoryId: furniture.id, condition: "GOOD", location: "HQ Floor 3", isBookable: true, acquisitionDate: daysAgo(900), acquisitionCost: 0 }, // 27
     { name: "Mobile Projector Cart", categoryId: electronics.id, condition: "GOOD", location: "HQ Floor 2", isBookable: true, acquisitionDate: daysAgo(400), acquisitionCost: 1100 }, // 28
     { name: "Shared Company Van", categoryId: vehicles.id, condition: "GOOD", location: "HQ Garage", isBookable: true, acquisitionDate: daysAgo(500), acquisitionCost: 26000 }, // 29
+    // Dedicated to a direct Field Ops department allocation below, so the
+    // utilization-by-department report has all 4 departments represented
+    // (Field Ops has no direct members — Field Ops — East is its only
+    // populated child — so without this it would show a flat 0).
+    { name: "Two-Way Radio Set", categoryId: itEquipment.id, condition: "GOOD", location: "Field Site 1", acquisitionDate: daysAgo(200), acquisitionCost: 300 }, // 30
   ];
 
   const assets = [];
@@ -208,7 +218,7 @@ async function main() {
   // Final lifecycle status pass (allocated/under-maintenance/lost/retired),
   // applied after insert so the assetDefs table above stays readable.
   const statusOverrides = {
-    1: "ALLOCATED", 2: "ALLOCATED", 6: "ALLOCATED", 9: "ALLOCATED", 13: "ALLOCATED", 16: "ALLOCATED",
+    1: "ALLOCATED", 2: "ALLOCATED", 6: "ALLOCATED", 9: "ALLOCATED", 13: "ALLOCATED", 16: "ALLOCATED", 30: "ALLOCATED",
     4: "UNDER_MAINTENANCE", 17: "UNDER_MAINTENANCE", 18: "UNDER_MAINTENANCE",
     24: "LOST",
     12: "RETIRED", 11: "RETIRED",
@@ -227,6 +237,7 @@ async function main() {
     { assetIdx: 9, toDepartmentId: engineering.id, allocatedById: manager.id },
     { assetIdx: 13, toEmployeeId: employee4.id, allocatedById: manager2.id, expectedReturnDate: daysAgo(-5) }, // overdue-ish edge case: past due date already
     { assetIdx: 16, toDepartmentId: facilities.id, allocatedById: manager2.id },
+    { assetIdx: 30, toDepartmentId: fieldOps.id, allocatedById: manager2.id },
   ];
   for (const def of activeAllocationDefs) {
     await prisma.allocation.create({
@@ -318,6 +329,16 @@ async function main() {
     { assetIdx: 29, bookedById: depthead2.id, title: "Site visit", start: atHour(daysAgo(4), 8), end: atHour(daysAgo(4), 12), status: "COMPLETED" },
     { assetIdx: 29, bookedById: manager.id, title: "Offsite transport", start: atHour(daysFromNow(5), 8), end: atHour(daysFromNow(5), 17), status: "UPCOMING" },
     { assetIdx: 29, bookedById: employee2.id, title: "Cancelled pickup", start: atHour(daysFromNow(2), 10), end: atHour(daysFromNow(2), 11), status: "CANCELLED" },
+    // Extra historical bookings spread across more weekdays/hours so the
+    // booking heatmap (day-of-week x hour) has more than a handful of dots.
+    { assetIdx: 25, bookedById: employee2.id, title: "Standup", start: atHour(daysAgo(9), 9), end: atHour(daysAgo(9), 9, 30), status: "COMPLETED" },
+    { assetIdx: 25, bookedById: employee3.id, title: "Client call", start: atHour(daysAgo(16), 13), end: atHour(daysAgo(16), 14), status: "COMPLETED" },
+    { assetIdx: 26, bookedById: employee.id, title: "Onboarding", start: atHour(daysAgo(11), 10), end: atHour(daysAgo(11), 11), status: "COMPLETED" },
+    { assetIdx: 26, bookedById: manager2.id, title: "Vendor demo", start: atHour(daysAgo(18), 15), end: atHour(daysAgo(18), 16), status: "COMPLETED" },
+    { assetIdx: 27, bookedById: depthead.id, title: "All-hands", start: atHour(daysAgo(6), 11), end: atHour(daysAgo(6), 12), status: "COMPLETED" },
+    { assetIdx: 27, bookedById: employee4.id, title: "Planning offsite", start: atHour(daysAgo(13), 9), end: atHour(daysAgo(13), 10), status: "COMPLETED" },
+    { assetIdx: 28, bookedById: employee3.id, title: "Product walkthrough", start: atHour(daysAgo(8), 14), end: atHour(daysAgo(8), 15), status: "COMPLETED" },
+    { assetIdx: 29, bookedById: employee5.id, title: "Warehouse run", start: atHour(daysAgo(20), 9), end: atHour(daysAgo(20), 11), status: "COMPLETED" },
   ];
   for (const def of bookingDefs) {
     await prisma.booking.create({
@@ -334,47 +355,50 @@ async function main() {
   }
 
   // ---------------------------------------------------------------------
-  // Maintenance requests — every kanban column + one rejected
+  // Maintenance requests — every kanban column + one rejected, createdAt
+  // explicitly spread across the trailing 6 months so the maintenance
+  // frequency report (default 6-month window) has a bucket per month
+  // instead of everything clustering on "now".
   // ---------------------------------------------------------------------
   await prisma.maintenanceRequest.create({
-    data: { assetId: assets[3].id, raisedById: employee2.id, description: "Monitor flickering intermittently", priority: "LOW" },
+    data: { assetId: assets[3].id, raisedById: employee2.id, description: "Monitor flickering intermittently", priority: "LOW", createdAt: daysAgo(3) },
   });
   await prisma.maintenanceRequest.create({
     data: {
       assetId: assets[4].id, raisedById: employee3.id, description: "Paper jam on every print job", priority: "MEDIUM",
-      status: "APPROVED", approvedById: manager.id, approvedAt: daysAgo(3),
+      status: "APPROVED", approvedById: manager.id, createdAt: daysAgo(25), approvedAt: daysAgo(23),
     },
   });
   await prisma.maintenanceRequest.create({
     data: {
       assetId: assets[17].id, raisedById: depthead2.id, description: "Hydraulic leak under the mast", priority: "HIGH",
-      status: "TECHNICIAN_ASSIGNED", approvedById: manager2.id, approvedAt: daysAgo(5), technicianId: employee5.id,
+      status: "TECHNICIAN_ASSIGNED", approvedById: manager2.id, createdAt: daysAgo(50), approvedAt: daysAgo(48), technicianId: employee5.id,
     },
   });
   await prisma.maintenanceRequest.create({
     data: {
       assetId: assets[18].id, raisedById: admin.id, description: "Switch keeps rebooting under load", priority: "URGENT",
-      status: "IN_PROGRESS", approvedById: manager.id, approvedAt: daysAgo(4), technicianId: employee4.id,
+      status: "IN_PROGRESS", approvedById: manager.id, createdAt: daysAgo(75), approvedAt: daysAgo(73), technicianId: employee4.id,
     },
   });
   await prisma.maintenanceRequest.create({
     data: {
       assetId: assets[7].id, raisedById: employee4.id, description: "Screen cracked after a drop", priority: "MEDIUM",
-      status: "RESOLVED", approvedById: manager.id, approvedAt: daysAgo(20), technicianId: employee5.id,
-      resolvedAt: daysAgo(15), resolutionNotes: "Screen replaced under warranty",
+      status: "RESOLVED", approvedById: manager.id, createdAt: daysAgo(100), approvedAt: daysAgo(97), technicianId: employee5.id,
+      resolvedAt: daysAgo(92), resolutionNotes: "Screen replaced under warranty",
     },
   });
   await prisma.maintenanceRequest.create({
     data: {
       assetId: assets[14].id, raisedById: employee3.id, description: "Wobbly leg on the conference table", priority: "LOW",
-      status: "RESOLVED", approvedById: manager2.id, approvedAt: daysAgo(25), technicianId: employee4.id,
-      resolvedAt: daysAgo(22), resolutionNotes: "Tightened and re-shimmed",
+      status: "RESOLVED", approvedById: manager2.id, createdAt: daysAgo(130), approvedAt: daysAgo(127), technicianId: employee4.id,
+      resolvedAt: daysAgo(122), resolutionNotes: "Tightened and re-shimmed",
     },
   });
   await prisma.maintenanceRequest.create({
     data: {
-      assetId: assets[8].id, raisedById: employee5.id, description: "Requesting a newer webcam model", priority: "LOW",
-      status: "REJECTED", approvedById: manager.id, approvedAt: daysAgo(10),
+      assetId: assets[8].id, raisedById: employee5.id, description: "Requesting a newer webcam model", priority: "LOW", createdAt: daysAgo(160),
+      status: "REJECTED", approvedById: manager.id, approvedAt: daysAgo(157),
     },
   });
 
@@ -503,7 +527,7 @@ async function main() {
   console.log(`Seeded org "${org.name}":`);
   console.log(`  ${activeUserDefs.length} active users, ${pendingDefs.length} pending-approval users`);
   console.log(`  4 departments (with 1 parent/child hierarchy), 5 asset categories`);
-  console.log(`  ${assets.length} assets (25 individually-allocatable + 5 bookable)`);
+  console.log(`  ${assets.length} assets (26 individually-allocatable + 5 bookable)`);
   console.log(`  ${activeAllocationDefs.length} active + ${returnedAllocationDefs.length} returned allocations, 3 transfer requests`);
   console.log(`  ${bookingDefs.length} bookings, 7 maintenance requests, 2 audit cycles (1 closed + 1 in progress)`);
   console.log(`  8 activity log entries`);

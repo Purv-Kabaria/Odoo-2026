@@ -50,7 +50,9 @@ export async function GET(req: Request) {
       });
     }
 
-    const meiliIds = q ? await searchIds(assetSearchConfig, q, Math.min(1000, Math.max(limit * page, 50))) : null;
+    const meiliIds = q
+      ? await searchIds(assetSearchConfig, q, Math.min(1000, Math.max(limit * page, 50)), user.orgId)
+      : null;
 
     const where: Prisma.AssetWhereInput = { orgId: user.orgId };
     if (meiliIds !== null) {

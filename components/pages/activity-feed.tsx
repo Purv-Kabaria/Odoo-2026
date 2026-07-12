@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readApiResponse } from "@/lib/api-client";
 import { formatTableDate } from "@/lib/date-format";
+import { roleLabel } from "@/lib/labels";
 import type { Prisma, Role } from "@prisma/client";
 
 type ActivityEvent = {
@@ -32,9 +33,9 @@ type ActivityResponse = {
 
 const POLL_INTERVAL_MS = 15000;
 
-/** `action` is a free-text string, either "domain.verb" or "DOMAIN_VERB" (activityLog.create call sites use both) — title-case either for display. */
-function actionLabel(action: string): string {
-  return action
+/** `action`/`entityType` are free-text technical identifiers, either "domain.verb"/"snake_case" or "DOMAIN_VERB" — title-case either for display so nothing internal-looking reaches the UI. */
+function humanizeIdentifier(value: string): string {
+  return value
     .toLowerCase()
     .split(/[._]/)
     .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
@@ -117,7 +118,7 @@ export function ActivityFeed() {
             Activity stream
           </h2>
           <p className="text-xs text-muted-foreground">
-            Database-backed change events with lightweight polling refresh.
+            A live feed of changes across your organization.
             {lastLoadedAt ? ` Last checked ${formatTableDate(lastLoadedAt)}.` : ""}
           </p>
         </div>
@@ -145,7 +146,7 @@ export function ActivityFeed() {
           <Clock className="size-8 text-muted-foreground" />
           <p className="text-sm font-medium">No activity yet</p>
           <p className="max-w-sm text-xs text-muted-foreground">
-            Create, update, delete, upload, or call an LLM route to populate this stream.
+            Actions like registering an asset, approving a request, or completing a booking will show up here.
           </p>
         </div>
       ) : (
@@ -158,18 +159,14 @@ export function ActivityFeed() {
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">
-                    {actionLabel(event.action)}
+                    {humanizeIdentifier(event.action)}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    {event.entityType}
-                    {event.entityId ? `:${event.entityId.slice(0, 8)}` : ""}
+                    {humanizeIdentifier(event.entityType)}
                   </span>
                 </div>
-                <p className="text-sm font-medium text-foreground">
-                  {actionLabel(event.action)} — {event.entityType}
-                </p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {event.actor ? `${event.actor.name} (${event.actor.role.toLowerCase()})` : "System"}
+                  {event.actor ? `${event.actor.name} (${roleLabel(event.actor.role)})` : "System"}
                 </p>
               </div>
               <time className="text-xs text-muted-foreground sm:text-right">

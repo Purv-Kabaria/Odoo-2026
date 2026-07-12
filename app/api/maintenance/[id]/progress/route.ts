@@ -3,6 +3,7 @@ import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { z } from "zod";
 
 const IdSchema = z.object({ id: z.string().uuid() });
@@ -35,6 +36,7 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
     });
     if (result.count !== 1) return Api.badRequest("This request is no longer awaiting technician assignment");
 
+    void deleteCacheByPrefix(`maintenance:list:${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "maintenance.in_progress",

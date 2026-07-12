@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { useSpeechToText } from "@/hooks/use-speech-to-text";
 import { cn } from "@/lib/utils";
 
@@ -25,18 +26,7 @@ type VoiceInputButtonProps = {
  * value directly, so it composes with any controlled text field.
  */
 export function VoiceInputButton({ onFinalResult, className, label }: VoiceInputButtonProps) {
-  const [prefersReducedMotion, setPrefersReducedMotion] = React.useState(false);
-
-  React.useEffect(() => {
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const frame = window.requestAnimationFrame(() => setPrefersReducedMotion(query.matches));
-    const onChange = () => setPrefersReducedMotion(query.matches);
-    query.addEventListener("change", onChange);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      query.removeEventListener("change", onChange);
-    };
-  }, []);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const { isSupported, isListening, start, stop } = useSpeechToText({
     onFinalResult,

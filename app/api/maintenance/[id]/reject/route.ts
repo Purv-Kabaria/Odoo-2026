@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
+import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { z } from "zod";
 
 const IdSchema = z.object({ id: z.string().uuid() });
@@ -36,6 +37,7 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
     });
     if (result.count !== 1) return Api.badRequest("This request has already been decided");
 
+    void deleteCacheByPrefix(`maintenance:list:${user.orgId}:`);
     void recordActivityEvent({
       orgId: user.orgId,
       action: "maintenance.rejected",

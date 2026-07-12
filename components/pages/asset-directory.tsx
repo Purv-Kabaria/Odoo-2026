@@ -8,14 +8,15 @@ import { toast } from "sonner";
 import { QrScannerModal } from "@/components/modals/qr-scanner-modal";
 
 import { AssetFormModal } from "@/components/modals/asset-form-modal";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TablePagination } from "@/components/tables/table-pagination";
 import { readApiResponse } from "@/lib/api-client";
+import { humanizeEnum } from "@/lib/labels";
 
 type AssetRow = {
   id: string;
@@ -31,13 +32,6 @@ type AssetRow = {
 type Category = { id: string; name: string };
 
 const STATUS_OPTIONS = ["AVAILABLE", "ALLOCATED", "RESERVED", "UNDER_MAINTENANCE", "LOST", "RETIRED", "DISPOSED"];
-
-function statusVariant(status: string): "default" | "secondary" | "outline" | "destructive" {
-  if (status === "AVAILABLE") return "secondary";
-  if (status === "ALLOCATED" || status === "RESERVED") return "default";
-  if (status === "UNDER_MAINTENANCE") return "outline";
-  return "destructive";
-}
 
 export function AssetDirectory({ canRegister }: { canRegister: boolean }) {
   const [rows, setRows] = React.useState<AssetRow[]>([]);
@@ -148,7 +142,7 @@ export function AssetDirectory({ canRegister }: { canRegister: boolean }) {
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             {STATUS_OPTIONS.map((s) => (
-              <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>
+              <SelectItem key={s} value={s}>{humanizeEnum(s)}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -187,7 +181,7 @@ export function AssetDirectory({ canRegister }: { canRegister: boolean }) {
                   </TableCell>
                   <TableCell>{asset.name}</TableCell>
                   <TableCell>{asset.category.name}</TableCell>
-                  <TableCell><Badge variant={statusVariant(asset.status)}>{asset.status.replace("_", " ")}</Badge></TableCell>
+                  <TableCell><StatusBadge kind="assetStatus" status={asset.status} /></TableCell>
                   <TableCell className="text-muted-foreground">{asset.location ?? "—"}</TableCell>
                 </TableRow>
               ))}

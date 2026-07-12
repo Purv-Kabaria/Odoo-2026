@@ -16,8 +16,11 @@ export const REPORT_EXPORT_KEYS = [
   "booking-heatmap",
 ] as const;
 
+export const REPORT_EXPORT_FORMATS = ["csv", "pdf", "docx"] as const;
+
 export const ReportExportQuerySchema = z.object({
   report: z.enum(REPORT_EXPORT_KEYS),
+  format: z.enum(REPORT_EXPORT_FORMATS).default("csv"),
   idleDays: z.coerce.number().int().min(1).max(365).default(60),
   retirementYears: z.coerce.number().int().min(1).max(50).default(5),
   months: z.coerce.number().int().min(1).max(24).default(6),
