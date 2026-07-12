@@ -237,6 +237,7 @@ model Asset {
   @@index([status, createdAt])
   @@index([departmentId, status])
   @@index([createdAt])
+  @@index([acquisitionDate])
 }
 
 enum AssetStatus {
@@ -357,7 +358,7 @@ model AuditDiscrepancy {
   cycle AuditCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
 
   @@index([cycleId])
-  @@index([type])
+  @@index([type, createdAt])
 }
 
 enum DiscrepancyType {
