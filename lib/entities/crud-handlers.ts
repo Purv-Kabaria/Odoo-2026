@@ -15,7 +15,7 @@ import {
   setJsonCache,
 } from '@/lib/redis-cache';
 import { BulkDeleteSchema, BulkUpdateSchema } from '@/types/entity-types';
-import type { UserRole } from '@prisma/client';
+import type { Role } from '@prisma/client';
 
 import { getDelegate } from './prisma-delegate';
 import type { FilterRuleInput, SortRuleInput } from './query';
@@ -66,7 +66,7 @@ export function invalidateEntityListCache(config: EntityConfig): Promise<void> {
 
 function entityCacheKey(
   config: EntityConfig,
-  role: UserRole,
+  role: Role,
   input: {
     page: number;
     limit: number;
@@ -281,13 +281,12 @@ export function createCollectionHandlers(config: EntityConfig) {
       void upsertInSearch(config, [created]);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        action: 'CREATED',
+        orgId: user.orgId,
+        action: `${config.key}.created`,
         actorId: user.id,
         entityType: config.key,
         entityId: created.id as string,
-        summary: `${config.singularLabel} created`,
-        requestId,
-        metadata: { entityLabel: config.singularLabel },
+        metadata: { requestId },
       });
       logger.info(`${config.key}.create`, {
         requestId,
@@ -356,12 +355,13 @@ export function createCollectionHandlers(config: EntityConfig) {
       void upsertInSearch(config, updatedRows);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        action: 'BULK_UPDATED',
+        orgId: user.orgId,
+        action: `${config.key}.bulk_updated`,
         actorId: user.id,
         entityType: config.key,
-        summary: `${result.count} ${config.label.toLowerCase()} updated`,
-        requestId,
+        entityId: 'bulk',
         metadata: {
+          requestId,
           field,
           requestedCount: ids.length,
           updatedCount: result.count,
@@ -412,12 +412,13 @@ export function createCollectionHandlers(config: EntityConfig) {
       void deleteFromSearch(config, ids);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        action: 'BULK_DELETED',
+        orgId: user.orgId,
+        action: `${config.key}.bulk_deleted`,
         actorId: user.id,
         entityType: config.key,
-        summary: `${result.count} ${config.label.toLowerCase()} deleted`,
-        requestId,
+        entityId: 'bulk',
         metadata: {
+          requestId,
           scope: ids && ids.length > 0 ? 'selected' : 'all',
           requestedCount: ids?.length ?? null,
           deletedCount: result.count,
@@ -494,13 +495,12 @@ export function createItemHandlers(config: EntityConfig) {
       void upsertInSearch(config, [updated]);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        action: 'UPDATED',
+        orgId: user.orgId,
+        action: `${config.key}.updated`,
         actorId: user.id,
         entityType: config.key,
         entityId: idResult.data.id,
-        summary: `${config.singularLabel} updated`,
-        requestId,
-        metadata: { entityLabel: config.singularLabel },
+        metadata: { requestId },
       });
       logger.info(`${config.key}.update`, { requestId, id: idResult.data.id });
 
@@ -549,13 +549,12 @@ export function createItemHandlers(config: EntityConfig) {
       void deleteFromSearch(config, [idResult.data.id]);
       void invalidateEntityListCache(config);
       void recordActivityEvent({
-        action: 'DELETED',
+        orgId: user.orgId,
+        action: `${config.key}.deleted`,
         actorId: user.id,
         entityType: config.key,
         entityId: idResult.data.id,
-        summary: `${config.singularLabel} deleted`,
-        requestId,
-        metadata: { entityLabel: config.singularLabel },
+        metadata: { requestId },
       });
       logger.info(`${config.key}.delete`, { requestId, id: idResult.data.id });
 

@@ -8,12 +8,8 @@ import { logger } from '@/lib/logger';
 import { hashToken } from '@/lib/password';
 import { prisma } from '@/lib/prisma';
 import { SESSION_COOKIE_NAME } from '@/lib/session-cookie';
-import type { UserRole } from '@prisma/client';
 
 const SESSION_DAYS = 30;
-
-/** Roles permitted to create/update/delete records. Read access only requires a session. */
-const MUTATION_ROLES: UserRole[] = ['ADMIN', 'MODERATOR'];
 
 export { hashPassword, hashToken, verifyPassword } from '@/lib/password';
 
@@ -68,11 +64,12 @@ export async function getCurrentUser() {
         user: {
           select: {
             id: true,
+            orgId: true,
             name: true,
             email: true,
             role: true,
-            location: true,
-            gender: true,
+            status: true,
+            departmentId: true,
           },
         },
       },
@@ -92,9 +89,4 @@ export async function getCurrentUser() {
   }
 
   return session.user;
-}
-
-/** Whether a role is permitted to create, update, or delete records. */
-export function canMutate(role: UserRole): boolean {
-  return MUTATION_ROLES.includes(role);
 }
