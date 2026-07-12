@@ -132,7 +132,7 @@ export function TablePagination({
             disabled={isFirstPage || controlsDisabled}
             aria-label="Go to previous page"
             className={cn(
-              "size-9 shrink-0 cursor-pointer sm:w-auto sm:px-2.5",
+              "size-9 shrink-0 cursor-pointer rounded-none sm:w-auto sm:px-2.5",
               "disabled:pointer-events-none disabled:opacity-50"
             )}
           >
@@ -164,7 +164,7 @@ export function TablePagination({
             disabled={isLastPage || controlsDisabled}
             aria-label="Go to next page"
             className={cn(
-              "size-9 shrink-0 cursor-pointer sm:w-auto sm:px-2.5",
+              "size-9 shrink-0 cursor-pointer rounded-none sm:w-auto sm:px-2.5",
               "disabled:pointer-events-none disabled:opacity-50"
             )}
           >

@@ -91,6 +91,14 @@ export const ChangePasswordSchema = z
 
 export const AccountProfileSchema = z.object({
   name: z.string().trim().min(2, 'Name must be at least 2 characters').max(120),
+  location: z
+    .string()
+    .trim()
+    .max(120, 'Location must be 120 characters or fewer')
+    .transform((value) => (value.length === 0 ? null : value))
+    .nullable()
+    .optional(),
+  gender: z.enum(['Male', 'Female', 'Other']).nullable().optional(),
 });
 
 export type LoginInput = z.infer<typeof LoginSchema>;
@@ -102,10 +110,9 @@ export type AccountProfileInput = z.infer<typeof AccountProfileSchema>;
 /** Minimal, client-safe view of the signed-in user (never includes credentials). */
 export type NavUser = {
   id: string;
-  orgId: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'ASSET_MANAGER' | 'DEPARTMENT_HEAD' | 'EMPLOYEE';
-  status: 'ACTIVE' | 'INACTIVE';
-  departmentId: string | null;
+  role: 'ADMIN' | 'USER' | 'MODERATOR';
+  location: string | null;
+  gender: string | null;
 };
