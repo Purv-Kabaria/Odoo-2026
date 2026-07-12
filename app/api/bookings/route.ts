@@ -1,58 +1,16 @@
-import { z } from "zod";
-
 import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
-import { deriveCheckInStatus } from "@/lib/bookings";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { ForbiddenError, requireRole } from "@/lib/rbac";
 import { BookingCreateSchema } from "@/types/booking-types";
 
-const BookingListQuerySchema = z.object({
-  scope: z.enum(["org"]).optional(),
-});
-
-export async function GET(req: Request) {
+export async function GET() {
   const requestId = crypto.randomUUID();
 
   try {
     const user = await getCurrentUser();
     if (!user) return Api.unauthorized();
-
-    const query = BookingListQuerySchema.safeParse(
-      Object.fromEntries(new URL(req.url).searchParams),
-    );
-    if (!query.success) return Api.badRequest("Invalid query parameters", query.error.format());
-
-    if (query.data.scope === "org") {
-      try {
-        requireRole(user, "ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD");
-      } catch (error) {
-        if (error instanceof ForbiddenError) return Api.forbidden(error.message);
-        throw error;
-      }
-
-      const startOfDay = new Date();
-      startOfDay.setUTCHours(0, 0, 0, 0);
-      const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
-
-      const bookings = await prisma.booking.findMany({
-        where: {
-          asset: { orgId: user.orgId },
-          startTime: { gte: startOfDay, lt: endOfDay },
-          ...(user.role === "DEPARTMENT_HEAD" ? { onBehalfOfDeptId: user.departmentId } : {}),
-        },
-        orderBy: { startTime: "asc" },
-        take: 200,
-        include: {
-          asset: { select: { id: true, assetTag: true, name: true } },
-          bookedBy: { select: { name: true } },
-        },
-      });
-
-      return Api.ok(bookings.map((b) => ({ ...b, checkInStatus: deriveCheckInStatus(b) })));
-    }
 
     const bookings = await prisma.booking.findMany({
       where: { bookedById: user.id, status: { in: ["UPCOMING", "ONGOING"] } },
@@ -61,7 +19,7 @@ export async function GET(req: Request) {
       include: { asset: { select: { id: true, assetTag: true, name: true } } },
     });
 
-    return Api.ok(bookings.map((b) => ({ ...b, checkInStatus: deriveCheckInStatus(b) })));
+    return Api.ok(bookings);
   } catch (error) {
     logger.error("bookings.mine.failed", error, { requestId });
     return Api.internalError("Failed to load your bookings");
@@ -102,17 +60,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const checkInDeadline = new Date(startTime.getTime() + 15 * 60 * 1000);
     const booking = await prisma.booking.create({
-      data: {
-        assetId,
-        bookedById: user.id,
-        title: title ?? null,
-        startTime,
-        endTime,
-        onBehalfOfDeptId: onBehalfOfDeptId ?? null,
-        checkInDeadline,
-      },
+      data: { assetId, bookedById: user.id, title: title ?? null, startTime, endTime, onBehalfOfDeptId: onBehalfOfDeptId ?? null },
     });
 
     void recordActivityEvent({

@@ -376,13 +376,6 @@ model Booking {
   endTime          DateTime
   status           BookingStatus @default(UPCOMING)
   reminderSentAt   DateTime?
-  // Check-in requirement: the slot holder must check in within 15 minutes of
-  // startTime or the booking auto-cancels to free the resource. checkInDeadline
-  // starts at startTime + 15m and is pushed once by +5m (checkInGraceExtended
-  // flips true) to give a single grace-period nudge before auto-cancel.
-  checkedIn            Boolean   @default(false)
-  checkInDeadline      DateTime?
-  checkInGraceExtended Boolean   @default(false)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -398,7 +391,6 @@ model Booking {
   // check scans before the DB exclusion constraint has the final say.
   @@index([assetId, startTime])
   @@index([status, startTime]) // reminder sweep / lifecycle transitions
-  @@index([status, checkedIn, checkInDeadline]) // check-in grace/auto-cancel sweep
 }
 
 // ---------------------------------------------------------------------------
