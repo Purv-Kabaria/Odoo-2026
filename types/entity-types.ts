@@ -44,22 +44,3 @@ export const OrganizationWriteSchema = OrganizationSchema.omit({
 
 export type OrganizationType = z.infer<typeof OrganizationSchema>;
 export type OrganizationWriteInput = z.infer<typeof OrganizationWriteSchema>;
-
-export const DepartmentSchema = z.object({
-  id: z.string().uuid().optional(),
-  name: z.string().trim().min(2).max(140),
-  headId: z.string().uuid().optional().nullable(),
-  parentDepartmentId: z.string().uuid().optional().nullable(),
-  status: z.enum(['PENDING_APPROVAL', 'ACTIVE', 'INACTIVE']).optional(),
-  createdAt: z.union([z.string(), z.date()]).optional(),
-  updatedAt: z.union([z.string(), z.date()]).optional(),
-});
-
-export const DepartmentWriteSchema = DepartmentSchema.omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type DepartmentType = z.infer<typeof DepartmentSchema>;
-export type DepartmentWriteInput = z.infer<typeof DepartmentWriteSchema>;

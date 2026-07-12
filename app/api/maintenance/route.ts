@@ -39,7 +39,7 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
       take: 200,
       include: {
-        asset: { select: { id: true, assetTag: true, name: true, status: true, acquisitionCost: true } },
+        asset: { select: { id: true, assetTag: true, name: true } },
         raisedBy: { select: { id: true, name: true } },
         technician: { select: { id: true, name: true } },
       },
