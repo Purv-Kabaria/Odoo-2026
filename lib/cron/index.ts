@@ -3,6 +3,7 @@ import { schedule } from "node-cron";
 import { logger } from "@/lib/logger";
 
 import { runBookingCheckinReminderSweep } from "./booking-checkin-reminder";
+import { runBookingCheckInSweep } from "./booking-checkin-sweep";
 import { runBookingReminderSweep } from "./booking-reminder";
 import { runOverdueReturnSweep } from "./overdue-return-sweep";
 
@@ -41,6 +42,18 @@ export function registerCronJobs(): void {
   );
 
   schedule(
+    "*/5 * * * *",
+    async () => {
+      try {
+        await runBookingCheckInSweep();
+      } catch (error) {
+        logger.error("cron.booking_checkin_sweep.failed", error);
+      }
+    },
+    { name: "booking-checkin-sweep", noOverlap: true },
+  );
+
+  schedule(
     "0 6 * * *",
     async () => {
       try {
@@ -53,6 +66,6 @@ export function registerCronJobs(): void {
   );
 
   logger.info("cron.registered", {
-    jobs: "booking-reminder, booking-checkin-reminder, overdue-return-sweep",
+    jobs: "booking-reminder, booking-checkin-reminder, booking-checkin-sweep, overdue-return-sweep",
   });
 }
