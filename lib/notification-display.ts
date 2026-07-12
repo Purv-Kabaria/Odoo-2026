@@ -47,7 +47,6 @@ export type NotificationView = {
   body: string | null;
   entityType: string | null;
   entityId: string | null;
-  metadata: unknown;
   readAt: string | null;
   createdAt: string;
 };
