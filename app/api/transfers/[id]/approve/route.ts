@@ -3,6 +3,7 @@ import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { getIdempotentResponse, idempotencyKeyFor, setIdempotentResponse } from "@/lib/idempotency";
 import { logger } from "@/lib/logger";
+import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { deleteCacheByPrefix } from "@/lib/redis-cache";
 import { z } from "zod";
@@ -85,6 +86,16 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       entityId: transfer.id,
       metadata: { assetId: transfer.assetId },
     });
+    void (async () => {
+      const asset = await prisma.asset.findUnique({ where: { id: transfer.assetId }, select: { assetTag: true } });
+      void dispatchNotification({
+        recipientIds: [transfer.toEmployeeId],
+        type: "TRANSFER_APPROVED",
+        title: `Transfer approved: ${asset?.assetTag ?? "asset"} is now yours`,
+        relatedEntityType: "transfer",
+        relatedEntityId: transfer.id,
+      });
+    })();
     void setIdempotentResponse(idempotencyKey, result);
     logger.info("transfers.approve", { requestId, id: transfer.id });
 
