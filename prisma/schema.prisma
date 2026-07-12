@@ -30,6 +30,7 @@ model User {
   auditCyclesClosed  AuditCycle[]         @relation("AuditCyclesClosed")
   auditorAssignments AuditCycleAuditor[]
   auditItemsVerified AuditItem[]
+  notifications      Notification[]
 
   @@index([role])
   @@index([gender])
@@ -364,4 +365,58 @@ model AuditDiscrepancy {
 enum DiscrepancyType {
   MISSING
   DAMAGED
+}
+
+// --- Notifications ---------------------------------------------------------
+// Personal, per-user, real-time-delivered (Redis pub/sub + SSE — see
+// lib/notifications.ts + lib/redis-pubsub.ts). Distinct from ActivityEvent,
+// which is the org-wide audit trail: a Notification is addressed to one
+// recipient and carries read/unread state, ActivityEvent is a global stream
+// nobody "reads" individually. NotificationType covers every type named in
+// the product spec, including ones no module can trigger yet (Allocation,
+// Booking, Maintenance aren't built) — dormant until that module ships,
+// same approach as AssetStatus shipping all 7 states before Allocation
+// existed. category is denormalized onto the row (resolved from
+// NOTIFICATION_TYPE_META at creation time) so the category-filtered feed is
+// a plain indexed equality query, not a per-request case statement.
+model Notification {
+  id         String               @id @default(uuid(7)) @db.Uuid
+  userId     String               @db.Uuid
+  type       NotificationType
+  category   NotificationCategory
+  title      String
+  body       String?
+  entityType String?
+  entityId   String?              @db.Uuid
+  metadata   Json?
+  readAt     DateTime?
+  createdAt  DateTime             @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([userId, category, createdAt])
+}
+
+enum NotificationCategory {
+  ALERT
+  APPROVAL
+  BOOKING
+  ASSIGNMENT
+  INFO
+}
+
+enum NotificationType {
+  ASSET_ASSIGNED
+  MAINTENANCE_APPROVED
+  MAINTENANCE_REJECTED
+  BOOKING_CONFIRMED
+  BOOKING_CANCELLED
+  BOOKING_REMINDER
+  TRANSFER_APPROVED
+  OVERDUE_RETURN
+  AUDIT_DISCREPANCY_FLAGGED
+  AUDIT_CYCLE_ASSIGNED
+  AUDIT_CYCLE_CLOSED
 }
