@@ -1,14 +1,17 @@
-import type { NotificationCategory, NotificationType, Prisma } from "@prisma/client";
+import type { NotificationType, Prisma } from "@prisma/client";
 
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { publishToUser } from "@/lib/redis-pubsub";
+import type { NotificationCategoryValue } from "@/lib/notification-display";
 
-/** Resolved onto the row at creation time so the category-filtered feed is
- * a plain indexed equality query, not a per-request case statement. Covers
- * every notification type named in the product spec — most are dormant
- * until their owning module (Allocation, Booking, Maintenance) ships. */
-export const NOTIFICATION_TYPE_META: Record<NotificationType, { category: NotificationCategory }> = {
+/** Computed at read time, never persisted — the `Notification` table has no
+ * `category` column, so this stays a pure derived lookup instead of a write
+ * path that could drift out of sync with the DB. Covers every notification
+ * type named in the product spec, including ones no module can trigger yet
+ * (Allocation/Booking/Maintenance aren't built), so those modules can plug
+ * in later without a migration. */
+export const NOTIFICATION_TYPE_META: Record<NotificationType, { category: NotificationCategoryValue }> = {
   ASSET_ASSIGNED: { category: "ASSIGNMENT" },
   MAINTENANCE_APPROVED: { category: "APPROVAL" },
   MAINTENANCE_REJECTED: { category: "APPROVAL" },
@@ -16,21 +19,30 @@ export const NOTIFICATION_TYPE_META: Record<NotificationType, { category: Notifi
   BOOKING_CANCELLED: { category: "BOOKING" },
   BOOKING_REMINDER: { category: "BOOKING" },
   TRANSFER_APPROVED: { category: "APPROVAL" },
+  TRANSFER_REJECTED: { category: "APPROVAL" },
   OVERDUE_RETURN: { category: "ALERT" },
-  AUDIT_DISCREPANCY_FLAGGED: { category: "ALERT" },
-  AUDIT_CYCLE_ASSIGNED: { category: "ASSIGNMENT" },
-  AUDIT_CYCLE_CLOSED: { category: "INFO" },
+  AUDIT_DISCREPANCY: { category: "ALERT" },
 };
+
+const CATEGORY_TO_TYPES: Record<NotificationCategoryValue, NotificationType[]> = (() => {
+  const map = { ALERT: [], APPROVAL: [], BOOKING: [], ASSIGNMENT: [], INFO: [] } as Record<
+    NotificationCategoryValue,
+    NotificationType[]
+  >;
+  for (const [type, meta] of Object.entries(NOTIFICATION_TYPE_META) as [NotificationType, { category: NotificationCategoryValue }][]) {
+    map[meta.category].push(type);
+  }
+  return map;
+})();
 
 export type NotificationView = {
   id: string;
   type: NotificationType;
-  category: NotificationCategory;
+  category: NotificationCategoryValue;
   title: string;
   body: string | null;
   entityType: string | null;
   entityId: string | null;
-  metadata: Prisma.JsonValue | null;
   readAt: string | null;
   createdAt: string;
 };
@@ -38,13 +50,11 @@ export type NotificationView = {
 const notificationSelect = {
   id: true,
   type: true,
-  category: true,
   title: true,
   body: true,
-  entityType: true,
-  entityId: true,
-  metadata: true,
-  readAt: true,
+  relatedEntityType: true,
+  relatedEntityId: true,
+  isRead: true,
   createdAt: true,
 } satisfies Prisma.NotificationSelect;
 
@@ -52,8 +62,18 @@ function toView(
   row: Prisma.NotificationGetPayload<{ select: typeof notificationSelect }>,
 ): NotificationView {
   return {
-    ...row,
-    readAt: row.readAt ? row.readAt.toISOString() : null,
+    id: row.id,
+    type: row.type,
+    category: NOTIFICATION_TYPE_META[row.type].category,
+    title: row.title,
+    body: row.body,
+    entityType: row.relatedEntityType,
+    entityId: row.relatedEntityId,
+    // The table only tracks isRead as a boolean (no read-timestamp column) —
+    // synthesize a stand-in timestamp so the API contract (readAt: string |
+    // null) stays stable for existing clients, which only ever check
+    // truthiness, never the actual value.
+    readAt: row.isRead ? row.createdAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -65,7 +85,6 @@ type CreateNotificationsInput = {
   body?: string;
   entityType?: string;
   entityId?: string;
-  metadata?: Prisma.InputJsonValue;
 };
 
 /** Best-effort, like `recordActivityEvent` — a notification failure must
@@ -76,19 +95,15 @@ export async function createNotifications(input: CreateNotificationsInput): Prom
   const uniqueRecipients = Array.from(new Set(input.recipientIds));
   if (uniqueRecipients.length === 0) return;
 
-  const { category } = NOTIFICATION_TYPE_META[input.type];
-
   try {
     const created = await prisma.notification.createManyAndReturn({
       data: uniqueRecipients.map((userId) => ({
         userId,
         type: input.type,
-        category,
         title: input.title,
         body: input.body ?? null,
-        entityType: input.entityType ?? null,
-        entityId: input.entityId ?? null,
-        metadata: input.metadata,
+        relatedEntityType: input.entityType ?? null,
+        relatedEntityId: input.entityId ?? null,
       })),
       select: { userId: true, ...notificationSelect },
     });
@@ -110,13 +125,13 @@ export async function listNotifications({
   limit,
 }: {
   userId: string;
-  category?: NotificationCategory;
+  category?: NotificationCategoryValue;
   page: number;
   limit: number;
 }): Promise<{ rows: NotificationView[]; total: number }> {
   const where: Prisma.NotificationWhereInput = {
     userId,
-    ...(category ? { category } : {}),
+    ...(category ? { type: { in: CATEGORY_TO_TYPES[category] } } : {}),
   };
 
   const [rows, total] = await Promise.all([
@@ -134,24 +149,27 @@ export async function listNotifications({
 }
 
 /** Ownership-guarded and idempotent — re-marking an already-read
- * notification just re-sets `readAt`, still returns true; only returns
- * false when the id doesn't belong to this user (or doesn't exist). */
+ * notification is a no-op, still returns true; only returns false when the
+ * id doesn't belong to this user (or doesn't exist). */
 export async function markNotificationRead(id: string, userId: string): Promise<boolean> {
-  const result = await prisma.notification.updateMany({
+  const existing = await prisma.notification.findFirst({ where: { id, userId }, select: { id: true } });
+  if (!existing) return false;
+
+  await prisma.notification.updateMany({
     where: { id, userId },
-    data: { readAt: new Date() },
+    data: { isRead: true },
   });
-  return result.count === 1;
+  return true;
 }
 
 export async function markAllNotificationsRead(userId: string): Promise<number> {
   const result = await prisma.notification.updateMany({
-    where: { userId, readAt: null },
-    data: { readAt: new Date() },
+    where: { userId, isRead: false },
+    data: { isRead: true },
   });
   return result.count;
 }
 
 export async function getUnreadCount(userId: string): Promise<number> {
-  return prisma.notification.count({ where: { userId, readAt: null } });
+  return prisma.notification.count({ where: { userId, isRead: false } });
 }
