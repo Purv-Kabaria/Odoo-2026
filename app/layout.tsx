@@ -5,6 +5,7 @@ import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const fontSans = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -56,8 +57,10 @@ export default async function RootLayout({
         className={`${fontSans.variable} ${fontHeading.variable} ${fontMono.variable} antialiased min-h-screen text-sm`}
       >
         <ThemeProvider initialTheme={initialTheme}>
-          {children}
-          <Toaster />
+          <TooltipProvider>
+            {children}
+            <Toaster />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>
