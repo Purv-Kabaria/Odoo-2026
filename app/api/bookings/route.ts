@@ -5,6 +5,7 @@ import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { deriveCheckInStatus } from "@/lib/bookings";
 import { logger } from "@/lib/logger";
+import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError, requireRole } from "@/lib/rbac";
 import { BookingCreateSchema } from "@/types/booking-types";
@@ -133,6 +134,13 @@ export async function POST(req: Request) {
       entityType: "booking",
       entityId: booking.id,
       metadata: { assetTag: asset.assetTag },
+    });
+    void dispatchNotification({
+      recipientIds: [user.id],
+      type: "BOOKING_CONFIRMED",
+      title: `Booking confirmed: ${asset.assetTag} — ${asset.name}`,
+      relatedEntityType: "booking",
+      relatedEntityId: booking.id,
     });
     logger.info("bookings.create", { requestId, id: booking.id, assetId });
 
