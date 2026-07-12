@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BookingCheckInStatusPanel } from "@/components/pages/booking-checkin-status-panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,7 +47,7 @@ function minutesFromDayStart(date: Date, dayStart: Date): number {
   return (date.getTime() - dayStart.getTime()) / 60000;
 }
 
-export function BookingWorkspace() {
+export function BookingWorkspace({ isManager = false }: { isManager?: boolean }) {
   const [assets, setAssets] = React.useState<Asset[]>([]);
   const [assetId, setAssetId] = React.useState("");
   const [dateStr, setDateStr] = React.useState(() => toLocalDateInput(new Date()));
@@ -342,6 +343,8 @@ export function BookingWorkspace() {
           </div>
         </section>
       </div>
+
+      {isManager && <BookingCheckInStatusPanel />}
     </main>
   );
 }
