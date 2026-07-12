@@ -45,8 +45,8 @@ export type EntityPermissions = Record<EntityAction, Role[]>;
 
 /**
  * Extra guard for fields within an entity that need a stricter role than
- * the entity's general `update` permission — e.g. any signed-in Asset
- * Manager can update a user's name, but only an Admin can change their role.
+ * the entity's general `update` permission — e.g. any signed-in Asset Manager
+ * can update a user's name, but only an Admin can change their role.
  */
 export type RestrictedFields = {
   fields: string[];
@@ -58,7 +58,7 @@ export type EntityConfig = {
   key: string;
   label: string;
   singularLabel: string;
-  prismaModel: 'user' | 'organization';
+  prismaModel: 'user' | 'organization' | 'department' | 'asset' | 'assetCategory';
   columns: EntityColumn[];
   /** Validates both create and update payloads (id/createdAt/updatedAt omitted). */
   schema: z.ZodTypeAny;
@@ -68,14 +68,6 @@ export type EntityConfig = {
   /** Omit entirely for Postgres-only search (no Meilisearch index for this entity). */
   search?: { indexEnv: string };
 };
-
-/**
- * The structural subset `lib/meilisearch.ts` actually needs. Lets a
- * bespoke, non-generic-CRUD domain (e.g. Asset) reuse Meilisearch indexing
- * without joining the generic `entityRegistry`/`EntityConfig` machinery —
- * any `EntityConfig` already satisfies this.
- */
-export type SearchableEntity = Pick<EntityConfig, 'key' | 'search' | 'columns'>;
 
 export function canPerform(
   config: EntityConfig,
@@ -89,14 +81,14 @@ export function editableColumns(config: EntityConfig): EntityColumn[] {
   return config.columns.filter((column) => column.editable !== false);
 }
 
-export function filterableColumns(config: SearchableEntity): EntityColumn[] {
+export function filterableColumns(config: EntityConfig): EntityColumn[] {
   return config.columns.filter((column) => column.filterable);
 }
 
-export function sortableColumns(config: SearchableEntity): EntityColumn[] {
+export function sortableColumns(config: EntityConfig): EntityColumn[] {
   return config.columns.filter((column) => column.sortable);
 }
 
-export function searchableColumns(config: SearchableEntity): EntityColumn[] {
+export function searchableColumns(config: EntityConfig): EntityColumn[] {
   return config.columns.filter((column) => column.searchable);
 }
