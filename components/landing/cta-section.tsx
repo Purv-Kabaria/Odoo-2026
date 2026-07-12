@@ -1,8 +1,9 @@
 "use client"
 
+import Link from "next/link"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Rocket, Sparkles, Code } from "lucide-react"
+import { ArrowRight, Boxes, CalendarClock, Wrench } from "lucide-react"
 
 export function CTASection() {
   return (
@@ -26,32 +27,34 @@ export function CTASection() {
           {/* Icon Cluster UI */}
           <div className="inline-flex items-center justify-center gap-4 mb-10 relative z-10">
             <div className="flex items-center justify-center size-12 md:size-14 rounded-full bg-primary/10 text-primary border border-primary/20 shadow-sm">
-              <Rocket className="size-6 md:size-7" />
+              <Boxes className="size-6 md:size-7" />
             </div>
             <div className="flex items-center justify-center size-16 md:size-20 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 ring-4 ring-primary/20">
-              <Sparkles className="size-8 md:size-10" />
+              <CalendarClock className="size-8 md:size-10" />
             </div>
             <div className="flex items-center justify-center size-12 md:size-14 rounded-full bg-primary/10 text-primary border border-primary/20 shadow-sm">
-              <Code className="size-6 md:size-7" />
+              <Wrench className="size-6 md:size-7" />
             </div>
           </div>
 
           <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl relative z-10 max-w-3xl mx-auto leading-tight mb-4">
             <span className="text-transparent bg-clip-text bg-gradient-to-br from-foreground to-foreground/70">
-              [Call to Action Headline]
+              Ready to see where every asset actually is?
             </span>
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-sm md:text-base lg:text-lg leading-relaxed text-muted-foreground relative z-10 font-medium">
-            [A compelling description urging the user to take the next step. Explain the immediate value they get by clicking the button below.]
+            Set up departments, register your first assets, and get a live view of who holds what — in minutes, not months.
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto">
-              <Button size="lg" className="w-full font-bold cursor-pointer group shadow-lg shadow-primary/20 px-10 h-14 md:h-16 text-base md:text-lg transition-colors border border-primary relative overflow-hidden">
-                <span className="relative z-10 flex items-center text-primary-foreground">
-                  <span className="flex h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse mr-3" />
-                  [Primary Action] <ArrowRight className="ml-2 size-5 md:size-6 group-hover:translate-x-1 transition-transform" />
-                </span>
-                <div className="absolute inset-0 bg-primary opacity-100 group-hover:opacity-90 transition-opacity" />
+              <Button asChild size="lg" className="w-full font-bold cursor-pointer group shadow-lg shadow-primary/20 px-10 h-14 md:h-16 text-base md:text-lg transition-colors border border-primary relative overflow-hidden">
+                <Link href="/signup">
+                  <span className="relative z-10 flex items-center text-primary-foreground">
+                    <span className="flex h-1.5 w-1.5 rounded-full bg-primary-foreground animate-pulse mr-3" />
+                    Create your account <ArrowRight className="ml-2 size-5 md:size-6 group-hover:translate-x-1 transition-transform" />
+                  </span>
+                  <div className="absolute inset-0 bg-primary opacity-100 group-hover:opacity-90 transition-opacity" />
+                </Link>
               </Button>
             </motion.div>
           </div>
