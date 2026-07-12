@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { readApiResponse } from "@/lib/api-client";
-
 type Department = { id: string; name: string };
 
 const INVITE_ROLES = [
@@ -26,7 +25,12 @@ const INVITE_ROLES = [
   { label: "Asset Manager", value: "ASSET_MANAGER" },
 ];
 
-export function InviteUserModal() {
+type InviteUserModalProps = {
+  onSuccess?: () => void;
+  triggerClassName?: string;
+};
+
+export function InviteUserModal({ onSuccess, triggerClassName }: InviteUserModalProps) {
   const [open, setOpen] = React.useState(false);
   const [departments, setDepartments] = React.useState<Department[]>([]);
   const [email, setEmail] = React.useState("");
@@ -34,7 +38,6 @@ export function InviteUserModal() {
   const [role, setRole] = React.useState("EMPLOYEE");
   const [departmentId, setDepartmentId] = React.useState<string>("none");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [inviteUrl, setInviteUrl] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
@@ -49,7 +52,6 @@ export function InviteUserModal() {
     setName("");
     setRole("EMPLOYEE");
     setDepartmentId("none");
-    setInviteUrl(null);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -66,9 +68,11 @@ export function InviteUserModal() {
           departmentId: departmentId === "none" ? null : departmentId,
         }),
       });
-      const json = await readApiResponse<{ data: { inviteUrl: string | null } }>(response, "Failed to send invite");
-      toast.success(`Invite sent to ${email}`);
-      setInviteUrl(json.data.inviteUrl);
+      await readApiResponse(response, "Failed to send invite");
+      toast.success("User invited successfully! An invitation email has been sent.");
+      setOpen(false);
+      reset();
+      onSuccess?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to send invite");
     } finally {
@@ -84,7 +88,7 @@ export function InviteUserModal() {
         if (!next) reset();
       }}
     >
-      <Button className="w-fit cursor-pointer" onClick={() => setOpen(true)}>
+      <Button className={triggerClassName ?? "w-fit cursor-pointer"} onClick={() => setOpen(true)}>
         <UserPlus className="size-4" />
         Invite user
       </Button>
@@ -95,71 +99,58 @@ export function InviteUserModal() {
             They&apos;ll receive a link to set their password. Admin can only be granted later, from this directory.
           </DialogDescription>
         </DialogHeader>
-        {inviteUrl ? (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Dev mode: no email was actually sent. Share this link with the invitee directly.
-            </p>
-            <Input readOnly value={inviteUrl} onFocus={(event) => event.currentTarget.select()} />
-            <DialogFooter>
-              <Button type="button" className="cursor-pointer" onClick={() => setOpen(false)}>
-                Done
-              </Button>
-            </DialogFooter>
+        <form onSubmit={(event) => void handleSubmit(event)} className="grid gap-3">
+          <div className="grid gap-2">
+            <Label htmlFor="invite-email">Email</Label>
+            <Input
+              id="invite-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              maxLength={254}
+            />
           </div>
-        ) : (
-          <form onSubmit={(event) => void handleSubmit(event)} className="grid gap-3">
+          <div className="grid gap-2">
+            <Label htmlFor="invite-name">Name</Label>
+            <Input
+              id="invite-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              minLength={2}
+              maxLength={120}
+              required
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
-              <Label htmlFor="invite-email">Email</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                maxLength={254}
-              />
+              <Label htmlFor="invite-role">Role</Label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger id="invite-role" className="cursor-pointer"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {INVITE_ROLES.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="invite-name">Name</Label>
-              <Input
-                id="invite-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                minLength={2}
-                maxLength={120}
-                required
-              />
+              <Label htmlFor="invite-department">Department</Label>
+              <Select value={departmentId} onValueChange={setDepartmentId}>
+                <SelectTrigger id="invite-department" className="cursor-pointer"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="invite-role">Role</Label>
-                <Select value={role} onValueChange={setRole}>
-                  <SelectTrigger id="invite-role" className="cursor-pointer"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {INVITE_ROLES.map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="invite-department">Department</Label>
-                <Select value={departmentId} onValueChange={setDepartmentId}>
-                  <SelectTrigger id="invite-department" className="cursor-pointer"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {departments.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={isSubmitting || !email || !name} className="cursor-pointer">
-                {isSubmitting ? "Sending..." : "Send invite"}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={isSubmitting || !email || !name} className="cursor-pointer">
+              {isSubmitting ? "Sending..." : "Send invite"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
 }
+
