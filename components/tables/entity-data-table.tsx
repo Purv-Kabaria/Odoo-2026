@@ -50,6 +50,8 @@ import {
 import { canPerform } from "@/lib/entities/types";
 import type { EntityColumn, EntityConfig } from "@/lib/entities/types";
 import type { Role } from "@prisma/client";
+import { UserActionsMenu } from "@/components/tables/user-actions-menu";
+import { InviteUserModal } from "@/components/modals/invite-user-modal";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -329,6 +331,9 @@ export function EntityDataTable({ config, currentUserRole }: EntityDataTableProp
                 <Trash2 className="size-4" /> Delete
               </DropdownMenuItem>
             ) : null}
+            {config.key === "users" && currentUserRole === "ADMIN" ? (
+              <UserActionsMenu row={row as Record<string, unknown> & { id: string }} onSuccess={load} />
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       ),
@@ -399,16 +404,20 @@ export function EntityDataTable({ config, currentUserRole }: EntityDataTableProp
             </DropdownMenuContent>
           </DropdownMenu>
           {canCreate ? (
-            <Button
-              type="button"
-              className={tableToolbarButtonClass}
-              onClick={() => {
-                setCreateValues(defaultFormValues(config));
-                setIsCreateOpen(true);
-              }}
-            >
-              <Plus className={tableToolbarIconClass} /> New {config.singularLabel}
-            </Button>
+            config.key === "users" ? (
+              <InviteUserModal onSuccess={load} triggerClassName={tableToolbarButtonClass} />
+            ) : (
+              <Button
+                type="button"
+                className={tableToolbarButtonClass}
+                onClick={() => {
+                  setCreateValues(defaultFormValues(config));
+                  setIsCreateOpen(true);
+                }}
+              >
+                <Plus className={tableToolbarIconClass} /> New {config.singularLabel}
+              </Button>
+            )
           ) : null}
         </div>
       </div>
