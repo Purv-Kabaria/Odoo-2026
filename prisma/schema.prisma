@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      UserRole @default(USER)
+  location  String?
+  gender    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  credential PasswordCredential?
+  sessions   AuthSession[]
+  objects    ObjectAsset[]
+  activityEvents ActivityEvent[]
+
+  @@index([role])
+  @@index([gender])
+  @@index([createdAt])
+  @@index([name])
+  @@index([location])
+  @@index([role, createdAt])
+  @@index([gender, createdAt])
+}
+
+model ObjectAsset {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  filename    String
+  contentType String
+  sizeBytes   Int
+  uploadedById String
+  createdAt   DateTime @default(now())
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([uploadedById])
+  @@index([createdAt])
+  @@index([uploadedById, createdAt])
+  @@index([contentType])
+}
+
+model ActivityEvent {
+  id         String         @id @default(cuid())
+  action     ActivityAction
+  entityType String
+  entityId   String?
+  actorId    String?
+  summary    String
+  metadata   Json?
+  requestId  String?
+  createdAt  DateTime       @default(now())
+  actor      User?          @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt, id])
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId, createdAt])
+  @@index([action, createdAt])
+}
+
+model PasswordCredential {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  passwordHash String
+  salt         String
+  iterations   Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  MODERATOR
+}
+
+enum ActivityAction {
+  CREATED
+  UPDATED
+  DELETED
+  BULK_UPDATED
+  BULK_DELETED
+  PROFILE_UPDATED
+  STORAGE_UPLOADED
+  STORAGE_DELETED
+  LLM_REQUESTED
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  name        String
+  sku         String        @unique
+  category    String
+  status      ProductStatus @default(DRAFT)
+  priceCents  Int
+  stock       Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([createdAt])
+  @@index([name])
+  @@index([sku])
+  @@index([status, createdAt])
+  @@index([category, createdAt])
+}
+
+model Organization {
+  id        String           @id @default(cuid())
+  name      String
+  slug      String           @unique
+  industry  String
+  region    String
+  plan      OrganizationPlan @default(STARTER)
+  seats     Int              @default(1)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([industry])
+  @@index([region])
+  @@index([plan])
+  @@index([createdAt])
+  @@index([name])
+  @@index([plan, createdAt])
+  @@index([industry, createdAt])
+  @@index([region, createdAt])
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+enum OrganizationPlan {
+  STARTER
+  GROWTH
+  ENTERPRISE
+}
