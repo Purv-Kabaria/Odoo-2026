@@ -32,9 +32,10 @@ type ActivityResponse = {
 
 const POLL_INTERVAL_MS = 15000;
 
-/** `action` is a free-text "domain.verb" string (e.g. "asset.allocated") — title-case it for display. */
+/** `action` is a free-text string, either "domain.verb" or "DOMAIN_VERB" (activityLog.create call sites use both) — title-case either for display. */
 function actionLabel(action: string): string {
   return action
+    .toLowerCase()
     .split(/[._]/)
     .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
     .join(" ");

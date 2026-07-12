@@ -30,10 +30,12 @@ export const config = {
     "/moderator/:path*",
     "/users/:path*",
     "/organizations/:path*",
+    "/departments/:path*",
     "/assets/:path*",
     "/allocations/:path*",
     "/bookings/:path*",
     "/maintenance/:path*",
     "/audit/:path*",
+    "/reports/:path*",
   ],
 };
