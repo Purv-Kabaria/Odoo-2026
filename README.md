@@ -137,6 +137,12 @@ docker compose --profile full up -d --build
 | `pnpm db:wipe` | Wipes all DB tables. Destructive. | Local cleanup. |
 | `pnpm db:wipe:table` | Wipes one DB table. Destructive. | Targeted local cleanup. |
 
+## Scheduled Jobs
+
+`GET /api/cron/bookings` runs the booking check-in state machine (UPCOMING → ONGOING → COMPLETED lifecycle, the 15-minute check-in deadline, the one-time 5-minute grace extension, and auto-cancel on a missed check-in). It requires an `Authorization: Bearer ${CRON_SECRET}` header and returns `503` if `CRON_SECRET` isn't set — it's fail-closed by default.
+
+`vercel.json` wires this up on a `*/5 * * * *` schedule via Vercel Cron Jobs, which automatically attaches the correct `Authorization` header once `CRON_SECRET` is set in the project's environment variables. On plans without frequent native Cron (e.g. Vercel Hobby, limited to daily schedules), point an external scheduler such as Upstash QStash at the same URL with the same header instead.
+
 ## App Surfaces
 
 - `/account`: user panel for profile editing and password settings.
