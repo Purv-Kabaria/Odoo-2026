@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bell,
   Boxes,
   Building2,
   CalendarClock,
@@ -70,6 +71,12 @@ export const navigationLinks: NavigationLink[] = [
     href: "/reports",
     icon: LineChart,
     roles: ["ADMIN", "ASSET_MANAGER"],
+  },
+  {
+    title: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+    roles: ALL_ROLES,
   },
   {
     title: "Account",

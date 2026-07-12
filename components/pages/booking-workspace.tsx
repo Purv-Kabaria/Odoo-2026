@@ -1,12 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { differenceInSeconds } from "date-fns";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BookingCheckInStatusPanel } from "@/components/pages/booking-checkin-status-panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,27 +11,15 @@ import { readApiResponse } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 type Asset = { id: string; assetTag: string; name: string; isBookable: boolean };
-type CheckInStatus = "CHECKED_IN" | "PENDING" | "MISSED";
 type Booking = {
   id: string;
   title: string | null;
   startTime: string;
   endTime: string;
   status: string;
-  checkedIn?: boolean;
-  checkInDeadline?: string | null;
-  checkInGraceExtended?: boolean;
-  checkInStatus?: CheckInStatus;
   bookedBy?: { name: string };
   asset?: { assetTag: string; name: string };
 };
-
-function formatCountdown(seconds: number): string {
-  if (seconds <= 0) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 const DAY_START_HOUR = 8;
 const DAY_END_HOUR = 18;
@@ -47,7 +32,7 @@ function minutesFromDayStart(date: Date, dayStart: Date): number {
   return (date.getTime() - dayStart.getTime()) / 60000;
 }
 
-export function BookingWorkspace({ isManager = false }: { isManager?: boolean }) {
+export function BookingWorkspace() {
   const [assets, setAssets] = React.useState<Asset[]>([]);
   const [assetId, setAssetId] = React.useState("");
   const [dateStr, setDateStr] = React.useState(() => toLocalDateInput(new Date()));
@@ -57,8 +42,6 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
   const [endTime, setEndTime] = React.useState("10:00");
   const [conflict, setConflict] = React.useState<{ from: Date; to: Date } | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [checkingInId, setCheckingInId] = React.useState<string | null>(null);
-  const [now, setNow] = React.useState(() => new Date());
 
   React.useEffect(() => {
     fetch("/api/assets?isBookable=true&limit=100")
@@ -107,26 +90,6 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
     return () => window.cancelAnimationFrame(frame);
   }, [loadDayBookings, loadMyBookings]);
 
-  const hasPendingCheckIn = myBookings.some(
-    (b) => (b.checkInStatus ?? "PENDING") === "PENDING" && b.status !== "CANCELLED" && b.status !== "COMPLETED",
-  );
-
-  // Live countdown ticker for check-in deadlines, independent of the
-  // server-refresh poll below.
-  React.useEffect(() => {
-    if (!hasPendingCheckIn) return;
-    const interval = window.setInterval(() => setNow(new Date()), 10_000);
-    return () => window.clearInterval(interval);
-  }, [hasPendingCheckIn]);
-
-  // No realtime channel for bookings — poll so server-side auto-cancel/grace
-  // extension (from the check-in cron sweep) shows up without a manual refresh.
-  React.useEffect(() => {
-    if (!hasPendingCheckIn) return;
-    const interval = window.setInterval(() => void loadMyBookings(), 20_000);
-    return () => window.clearInterval(interval);
-  }, [hasPendingCheckIn, loadMyBookings]);
-
   const requestedRange = React.useMemo(() => {
     if (!startTime || !endTime) return null;
     const start = new Date(`${dateStr}T${startTime}:00`);
@@ -174,21 +137,6 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
       toast.error(error instanceof Error ? error.message : "Failed to create booking");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleCheckIn = async (id: string) => {
-    setCheckingInId(id);
-    try {
-      const response = await fetch(`/api/bookings/${id}/check-in`, { method: "POST" });
-      await readApiResponse(response, "Failed to check in");
-      toast.success("Checked in");
-      void loadMyBookings();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to check in");
-      void loadMyBookings();
-    } finally {
-      setCheckingInId(null);
     }
   };
 
@@ -292,59 +240,21 @@ export function BookingWorkspace({ isManager = false }: { isManager?: boolean })
               <p className="text-xs text-muted-foreground">No upcoming bookings.</p>
             ) : (
               <ul className="space-y-2">
-                {myBookings.map((b) => {
-                  const checkInStatus = b.checkInStatus ?? "PENDING";
-                  const canCheckIn =
-                    checkInStatus === "PENDING" &&
-                    b.status !== "CANCELLED" &&
-                    b.status !== "COMPLETED" &&
-                    now >= new Date(b.startTime);
-                  const secondsToDeadline = b.checkInDeadline
-                    ? differenceInSeconds(new Date(b.checkInDeadline), now)
-                    : null;
-                  const inGrace = Boolean(b.checkInGraceExtended) && checkInStatus === "PENDING";
-
-                  return (
-                    <li key={b.id} className="flex flex-col gap-2 border border-border p-2 text-xs sm:flex-row sm:items-center sm:justify-between">
-                      <span className="min-w-0 truncate">
-                        {b.asset?.assetTag} — {new Date(b.startTime).toLocaleString()}
-                      </span>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {checkInStatus === "CHECKED_IN" && <Badge variant="secondary">Checked in</Badge>}
-                        {checkInStatus === "MISSED" && <Badge variant="destructive">Missed check-in</Badge>}
-                        {canCheckIn && secondsToDeadline !== null && (
-                          <span className={cn("text-muted-foreground", inGrace && "font-medium text-destructive")}>
-                            {inGrace ? "Grace: " : "Check in: "}
-                            {formatCountdown(secondsToDeadline)}
-                          </span>
-                        )}
-                        {canCheckIn && (
-                          <Button
-                            size="sm"
-                            variant={inGrace ? "destructive" : "default"}
-                            className="cursor-pointer"
-                            disabled={checkingInId === b.id}
-                            onClick={() => void handleCheckIn(b.id)}
-                          >
-                            {checkingInId === b.id ? "Checking in..." : "Check In"}
-                          </Button>
-                        )}
-                        {checkInStatus !== "MISSED" && b.status !== "CANCELLED" && b.status !== "COMPLETED" && (
-                          <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => void handleCancel(b.id)}>
-                            Cancel
-                          </Button>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
+                {myBookings.map((b) => (
+                  <li key={b.id} className="flex items-center justify-between gap-2 border border-border p-2 text-xs">
+                    <span className="min-w-0 truncate">
+                      {b.asset?.assetTag} — {new Date(b.startTime).toLocaleString()}
+                    </span>
+                    <Button size="sm" variant="outline" className={cn("shrink-0 cursor-pointer")} onClick={() => void handleCancel(b.id)}>
+                      Cancel
+                    </Button>
+                  </li>
+                ))}
               </ul>
             )}
           </div>
         </section>
       </div>
-
-      {isManager && <BookingCheckInStatusPanel />}
     </main>
   );
 }
