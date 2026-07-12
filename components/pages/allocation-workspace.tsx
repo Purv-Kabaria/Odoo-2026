@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { ReturnAllocationModal } from "@/components/modals/return-allocation-modal";
 import { readApiResponse } from "@/lib/api-client";
 import { formatTableDate } from "@/lib/date-format";
 
@@ -61,6 +62,7 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
   const [transferReason, setTransferReason] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isCreateKitOpen, setIsCreateKitOpen] = React.useState(false);
+  const [returnTarget, setReturnTarget] = React.useState<{ allocationId: string; assetLabel: string } | null>(null);
 
   const load = React.useCallback(async () => {
     setIsLoading(true);
@@ -205,21 +207,6 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
       toast.error(error instanceof Error ? error.message : "Failed to submit transfer request");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleReturn = async (allocationId: string) => {
-    try {
-      const response = await fetch(`/api/allocations/${allocationId}/return`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnCondition: "GOOD" }),
-      });
-      await readApiResponse(response, "Failed to process return");
-      toast.success("Asset marked as returned");
-      void load();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to process return");
     }
   };
 
@@ -452,7 +439,14 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
                 <div className="flex items-center gap-2">
                   <Badge variant={a.status === "ACTIVE" ? "default" : "secondary"}>{a.status}</Badge>
                   {canAllocate && a.status === "ACTIVE" && (
-                    <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => void handleReturn(a.id)}>Mark returned</Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="cursor-pointer"
+                      onClick={() => setReturnTarget({ allocationId: a.id, assetLabel: `${a.asset.assetTag} — ${a.asset.name}` })}
+                    >
+                      Mark returned
+                    </Button>
                   )}
                 </div>
               </li>
@@ -460,6 +454,12 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
           </ul>
         )}
       </section>
+
+      <ReturnAllocationModal
+        target={returnTarget}
+        onOpenChange={(open) => { if (!open) setReturnTarget(null); }}
+        onReturned={() => { setReturnTarget(null); void load(); }}
+      />
     </main>
   );
 }
