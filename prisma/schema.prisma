@@ -26,6 +26,10 @@ model User {
   sessions   AuthSession[]
   objects    ObjectAsset[]
   activityEvents ActivityEvent[]
+  auditCyclesCreated AuditCycle[]         @relation("AuditCyclesCreated")
+  auditCyclesClosed  AuditCycle[]         @relation("AuditCyclesClosed")
+  auditorAssignments AuditCycleAuditor[]
+  auditItemsVerified AuditItem[]
 
   @@index([role])
   @@index([gender])
@@ -121,6 +125,9 @@ enum ActivityAction {
   STORAGE_UPLOADED
   STORAGE_DELETED
   LLM_REQUESTED
+  AUDIT_CYCLE_CREATED
+  AUDIT_ITEM_MARKED
+  AUDIT_CYCLE_CLOSED
 }
 
 model Product {
@@ -174,4 +181,186 @@ enum OrganizationPlan {
   STARTER
   GROWTH
   ENTERPRISE
+}
+
+// --- AssetFlow domain: Department, Asset, Audit --------------------------
+// Lean slice built for the Audit Cycle module (Screen 8). Only the fields
+// Audit/Reports need are here now; allocation/booking/maintenance fields
+// and AssetCategory land with those modules.
+
+model Department {
+  id        String           @id @default(uuid(7)) @db.Uuid
+  name      String           @unique
+  parentId  String?          @db.Uuid
+  status    DepartmentStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  parent   Department?  @relation("DeptHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Department[] @relation("DeptHierarchy")
+  assets      Asset[]
+  auditCycles AuditCycle[]
+
+  @@index([parentId])
+  @@index([status])
+  @@index([status, createdAt])
+}
+
+enum DepartmentStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Asset {
+  id                   String         @id @default(uuid(7)) @db.Uuid
+  assetTag             String         @unique
+  name                 String
+  category             String
+  serialNumber         String?        @unique
+  status               AssetStatus    @default(AVAILABLE)
+  condition            AssetCondition @default(GOOD)
+  location             String?
+  departmentId         String?        @db.Uuid
+  acquisitionDate      DateTime?
+  acquisitionCostCents Int?
+  isBookable           Boolean        @default(false)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  department  Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  auditItems  AuditItem[]
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([location])
+  @@index([category])
+  @@index([status, createdAt])
+  @@index([departmentId, status])
+  @@index([createdAt])
+}
+
+enum AssetStatus {
+  AVAILABLE
+  ALLOCATED
+  RESERVED
+  UNDER_MAINTENANCE
+  LOST
+  RETIRED
+  DISPOSED
+}
+
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+model AuditCycle {
+  id           String           @id @default(uuid(7)) @db.Uuid
+  name         String
+  scopeType    AuditScopeType
+  departmentId String?          @db.Uuid
+  location     String?
+  startDate    DateTime         @db.Date
+  endDate      DateTime         @db.Date
+  status       AuditCycleStatus @default(ACTIVE)
+  createdById  String?          @db.Uuid
+  closedById   String?          @db.Uuid
+  closedAt     DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  department    Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  createdBy     User?                @relation("AuditCyclesCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  closedBy      User?                @relation("AuditCyclesClosed", fields: [closedById], references: [id], onDelete: SetNull)
+  auditors      AuditCycleAuditor[]
+  items         AuditItem[]
+  discrepancies AuditDiscrepancy[]
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([status, createdAt])
+  @@index([createdAt])
+}
+
+enum AuditScopeType {
+  DEPARTMENT
+  LOCATION
+}
+
+enum AuditCycleStatus {
+  ACTIVE
+  CLOSED
+}
+
+model AuditCycleAuditor {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  cycleId    String   @db.Uuid
+  auditorId  String   @db.Uuid
+  assignedAt DateTime @default(now())
+
+  cycle    AuditCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  auditor  User       @relation(fields: [auditorId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, auditorId])
+  @@index([auditorId])
+  @@index([cycleId])
+}
+
+model AuditItem {
+  id               String          @id @default(uuid(7)) @db.Uuid
+  cycleId          String          @db.Uuid
+  assetId          String          @db.Uuid
+  expectedLocation String?
+  status           AuditItemStatus @default(PENDING)
+  note             String?
+  verifiedById     String?         @db.Uuid
+  verifiedAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  cycle      AuditCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  asset      Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  verifiedBy User?      @relation(fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  @@unique([cycleId, assetId])
+  @@index([cycleId, status])
+  @@index([assetId])
+  @@index([verifiedById])
+}
+
+enum AuditItemStatus {
+  PENDING
+  VERIFIED
+  MISSING
+  DAMAGED
+}
+
+// Denormalized on purpose: frozen at cycle-close so the discrepancy report
+// stays accurate even if the underlying asset is later renamed, moved, or
+// deleted. assetId is kept for traceability but the report never re-reads
+// live asset fields.
+model AuditDiscrepancy {
+  id                  String          @id @default(uuid(7)) @db.Uuid
+  cycleId             String          @db.Uuid
+  assetId             String?         @db.Uuid
+  assetTag            String
+  assetName           String
+  expectedLocation    String?
+  type                DiscrepancyType
+  note                String?
+  resolvedAssetStatus AssetStatus?
+  createdAt           DateTime        @default(now())
+
+  cycle AuditCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@index([cycleId])
+  @@index([type])
+}
+
+enum DiscrepancyType {
+  MISSING
+  DAMAGED
 }

@@ -32,5 +32,8 @@ export const config = {
     "/users/:path*",
     "/products/:path*",
     "/organizations/:path*",
+    "/departments/:path*",
+    "/assets/:path*",
+    "/audit/:path*",
   ],
 };
