@@ -64,16 +64,14 @@ export const usersEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'ASSET_MANAGER'],
-    // No generic "create" here — a User row needs a hashed password and an
-    // orgId, neither of which this scalar-column form can produce safely;
-    // account creation goes through /signup instead.
-    create: [],
+    read: ['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD'],
+    create: ['ADMIN', 'ASSET_MANAGER'],
     update: ['ADMIN', 'ASSET_MANAGER'],
     delete: ['ADMIN'],
   },
-  // Only an Admin can promote/demote a role — the only role-assignment
-  // entry point per the problem statement (Screen 3 Tab C) and AGENTS.md §6.
+  // Any signed-in Asset Manager can update a user's profile fields, but only an
+  // Admin can promote/demote a role — prevents a Moderator from granting
+  // themselves (or anyone) Admin access.
   restrictedFields: {
     fields: ['role'],
     allowedRoles: ['ADMIN'],

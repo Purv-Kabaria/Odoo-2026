@@ -22,10 +22,10 @@ const ALL_ROLES: Role[] = ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYE
 
 export const navigationLinks: NavigationLink[] = [
   {
-    title: "Admin",
-    href: "/admin",
+    title: "Dashboard",
+    href: "/dashboard",
     icon: Gauge,
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "ASSET_MANAGER", "DEPARTMENT_HEAD", "EMPLOYEE"],
   },
   {
     title: "Asset Manager",

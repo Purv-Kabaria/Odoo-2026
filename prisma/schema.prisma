@@ -29,6 +29,7 @@ enum Role {
 }
 
 enum ActiveStatus {
+  PENDING_APPROVAL
   ACTIVE
   INACTIVE
 }
@@ -118,7 +119,7 @@ enum NotificationType {
 // ---------------------------------------------------------------------------
 
 model Organization {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid(7))
   name      String
   slug      String   @unique
   // Monotonic per-org counter for AF-#### tag generation. Incremented inside
@@ -141,20 +142,28 @@ model Organization {
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String       @id @default(cuid())
+  id           String       @id @default(uuid(7))
   orgId        String
   email        String       @unique
-  passwordHash String
+  passwordHash String?      // nullable — invited users have none until they set one
   name         String
   role         Role         @default(EMPLOYEE)
-  status       ActiveStatus @default(ACTIVE)
+  status       ActiveStatus @default(PENDING_APPROVAL)
   departmentId String?
+  invitedById  String?
+  invitedAt    DateTime?
+  approvedById String?
+  approvedAt   DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   department Department?  @relation("DeptMembers", fields: [departmentId], references: [id], onDelete: SetNull)
+  invitedBy  User?        @relation("UserInvites", fields: [invitedById], references: [id], onDelete: SetNull)
+  approvedBy User?        @relation("UserApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
 
+  invitedUsers         User[]               @relation("UserInvites")
+  approvedUsers        User[]               @relation("UserApprovals")
   headedDepartments    Department[]         @relation("DeptHead")
   sessions             AuthSession[]
   resetTokens          PasswordResetToken[]
@@ -176,13 +185,15 @@ model User {
 
   @@index([orgId])
   @@index([departmentId])
+  @@index([invitedById])
+  @@index([approvedById])
   // Directory list: filter by department/role/status within an org.
   @@index([orgId, role])
   @@index([orgId, status])
 }
 
 model Department {
-  id                 String       @id @default(cuid())
+  id                 String       @id @default(uuid(7))
   orgId              String
   name               String
   headId             String?
@@ -207,7 +218,7 @@ model Department {
 }
 
 model AssetCategory {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid(7))
   orgId     String
   name      String
   // Category-specific field *definitions* (e.g. Electronics -> warrantyMonths).
@@ -231,7 +242,7 @@ model AssetCategory {
 // ---------------------------------------------------------------------------
 
 model Asset {
-  id              String         @id @default(cuid())
+  id              String         @id @default(uuid(7))
   orgId           String
   assetTag        String // AF-0001, generated per-org; unique within org (see @@unique)
   name            String
@@ -279,7 +290,7 @@ model Asset {
 // ---------------------------------------------------------------------------
 
 model Allocation {
-  id                 String           @id @default(cuid())
+  id                 String           @id @default(uuid(7))
   assetId            String
   // Allocation target is EITHER an employee OR a department, never both/neither.
   // Enforced by a check constraint in the manual migration.
@@ -312,7 +323,7 @@ model Allocation {
 }
 
 model TransferRequest {
-  id            String         @id @default(cuid())
+  id            String         @id @default(uuid(7))
   assetId       String
   fromEmployeeId String?
   toEmployeeId  String
@@ -342,7 +353,7 @@ model TransferRequest {
 // ---------------------------------------------------------------------------
 
 model Booking {
-  id                 String        @id @default(cuid())
+  id                 String        @id @default(uuid(7))
   assetId            String
   bookedById         String
   onBehalfOfDeptId   String?
@@ -373,7 +384,7 @@ model Booking {
 // ---------------------------------------------------------------------------
 
 model MaintenanceRequest {
-  id              String              @id @default(cuid())
+  id              String              @id @default(uuid(7))
   assetId         String
   raisedById      String
   approvedById    String?
@@ -405,7 +416,7 @@ model MaintenanceRequest {
 // ---------------------------------------------------------------------------
 
 model AuditCycle {
-  id           String           @id @default(cuid())
+  id           String           @id @default(uuid(7))
   orgId        String
   name         String
   scopeDeptId  String?
@@ -431,7 +442,7 @@ model AuditCycle {
 }
 
 model AuditAssignment {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid(7))
   cycleId   String
   auditorId String
   createdAt DateTime @default(now())
@@ -445,7 +456,7 @@ model AuditAssignment {
 }
 
 model AuditItem {
-  id           String            @id @default(cuid())
+  id           String            @id @default(uuid(7))
   cycleId      String
   assetId      String
   verification AuditVerification @default(PENDING)
@@ -467,7 +478,7 @@ model AuditItem {
 }
 
 model DiscrepancyReport {
-  id          String   @id @default(cuid())
+  id          String   @id @default(uuid(7))
   cycleId     String   @unique
   // Snapshot taken at cycle close: counts + the flagged asset list, frozen so
   // the report is stable even if asset state changes afterward.
@@ -482,7 +493,7 @@ model DiscrepancyReport {
 // ---------------------------------------------------------------------------
 
 model Notification {
-  id                String           @id @default(cuid())
+  id                String           @id @default(uuid(7))
   userId            String
   type              NotificationType
   title             String
@@ -500,7 +511,7 @@ model Notification {
 }
 
 model ActivityLog {
-  id         String   @id @default(cuid())
+  id         String   @id @default(uuid(7))
   orgId      String
   actorId    String?
   action     String // e.g. "asset.allocated", "maintenance.approved"
@@ -522,7 +533,7 @@ model ActivityLog {
 // ---------------------------------------------------------------------------
 
 model AuthSession {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid(7))
   userId    String
   tokenHash String   @unique // sha256 of the opaque cookie value; raw never stored
   expiresAt DateTime
@@ -536,7 +547,7 @@ model AuthSession {
 }
 
 model PasswordResetToken {
-  id        String    @id @default(cuid())
+  id        String    @id @default(uuid(7))
   userId    String
   tokenHash String    @unique
   expiresAt DateTime
