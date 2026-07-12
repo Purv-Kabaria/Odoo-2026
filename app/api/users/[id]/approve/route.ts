@@ -36,6 +36,18 @@ export async function PATCH(
       return Api.badRequest(`User is not pending approval. Current status: ${targetUser.status}`);
     }
 
+    // An invited-but-not-yet-set-up user has no password. Approving them
+    // straight to Active would violate the DB's
+    // User_password_or_pending_check constraint (a user can only be
+    // non-pending if they have a password) — catch it here with a clear
+    // message instead of a raw constraint violation reaching the generic
+    // 500 handler below.
+    if (!targetUser.passwordHash) {
+      return Api.badRequest(
+        "This user hasn't accepted their invite yet — they must set a password before being approved",
+      );
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       // Update status
       const updated = await tx.user.update({
