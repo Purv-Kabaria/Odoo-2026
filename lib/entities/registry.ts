@@ -1,5 +1,3 @@
-import { assetsEntityConfig } from './assets';
-import { departmentsEntityConfig } from './departments';
 import { organizationsEntityConfig } from './organizations';
 import type { EntityConfig } from './types';
 import { usersEntityConfig } from './users';
@@ -13,8 +11,6 @@ import { usersEntityConfig } from './users';
 export const entityRegistry: EntityConfig[] = [
   usersEntityConfig,
   organizationsEntityConfig,
-  departmentsEntityConfig,
-  assetsEntityConfig,
 ];
 
 export function getEntityConfig(key: string): EntityConfig | undefined {

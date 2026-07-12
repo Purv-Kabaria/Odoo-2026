@@ -1,23 +1,6 @@
-/*
-  Warnings:
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
 
-  - You are about to drop the column `industry` on the `Organization` table. All the data in the column will be lost.
-  - You are about to drop the column `plan` on the `Organization` table. All the data in the column will be lost.
-  - You are about to drop the column `region` on the `Organization` table. All the data in the column will be lost.
-  - You are about to drop the column `seats` on the `Organization` table. All the data in the column will be lost.
-  - You are about to drop the column `email` on the `PasswordResetToken` table. All the data in the column will be lost.
-  - You are about to drop the column `gender` on the `User` table. All the data in the column will be lost.
-  - You are about to drop the column `location` on the `User` table. All the data in the column will be lost.
-  - The `role` column on the `User` table would be dropped and recreated. This will lead to data loss if there is data in the column.
-  - You are about to drop the `ActivityEvent` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `ObjectAsset` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `PasswordCredential` table. If the table is not empty, all the data it contains will be lost.
-  - You are about to drop the `Product` table. If the table is not empty, all the data it contains will be lost.
-  - Added the required column `userId` to the `PasswordResetToken` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `orgId` to the `User` table without a default value. This is not possible if the table is not empty.
-  - Added the required column `passwordHash` to the `User` table without a default value. This is not possible if the table is not empty.
-
-*/
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD', 'EMPLOYEE');
 
@@ -54,134 +37,33 @@ CREATE TYPE "AuditVerification" AS ENUM ('PENDING', 'VERIFIED', 'MISSING', 'DAMA
 -- CreateEnum
 CREATE TYPE "NotificationType" AS ENUM ('ASSET_ASSIGNED', 'TRANSFER_APPROVED', 'TRANSFER_REJECTED', 'MAINTENANCE_APPROVED', 'MAINTENANCE_REJECTED', 'BOOKING_CONFIRMED', 'BOOKING_CANCELLED', 'BOOKING_REMINDER', 'OVERDUE_RETURN', 'AUDIT_DISCREPANCY');
 
--- DropForeignKey
-ALTER TABLE "ActivityEvent" DROP CONSTRAINT "ActivityEvent_actorId_fkey";
+-- CreateTable
+CREATE TABLE "Organization" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "assetSeq" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
--- DropForeignKey
-ALTER TABLE "ObjectAsset" DROP CONSTRAINT "ObjectAsset_uploadedById_fkey";
+    CONSTRAINT "Organization_pkey" PRIMARY KEY ("id")
+);
 
--- DropForeignKey
-ALTER TABLE "PasswordCredential" DROP CONSTRAINT "PasswordCredential_userId_fkey";
+-- CreateTable
+CREATE TABLE "User" (
+    "id" TEXT NOT NULL,
+    "orgId" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "passwordHash" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "role" "Role" NOT NULL DEFAULT 'EMPLOYEE',
+    "status" "ActiveStatus" NOT NULL DEFAULT 'ACTIVE',
+    "departmentId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
--- DropIndex
-DROP INDEX "AuthSession_expiresAt_idx";
-
--- DropIndex
-DROP INDEX "Organization_createdAt_idx";
-
--- DropIndex
-DROP INDEX "Organization_industry_createdAt_idx";
-
--- DropIndex
-DROP INDEX "Organization_industry_idx";
-
--- DropIndex
-DROP INDEX "Organization_industry_trgm_idx";
-
--- DropIndex
-DROP INDEX "Organization_name_idx";
-
--- DropIndex
-DROP INDEX "Organization_name_trgm_idx";
-
--- DropIndex
-DROP INDEX "Organization_plan_createdAt_idx";
-
--- DropIndex
-DROP INDEX "Organization_plan_idx";
-
--- DropIndex
-DROP INDEX "Organization_region_createdAt_idx";
-
--- DropIndex
-DROP INDEX "Organization_region_idx";
-
--- DropIndex
-DROP INDEX "Organization_region_trgm_idx";
-
--- DropIndex
-DROP INDEX "Organization_slug_trgm_idx";
-
--- DropIndex
-DROP INDEX "PasswordResetToken_email_idx";
-
--- DropIndex
-DROP INDEX "PasswordResetToken_expiresAt_idx";
-
--- DropIndex
-DROP INDEX "User_createdAt_idx";
-
--- DropIndex
-DROP INDEX "User_email_trgm_idx";
-
--- DropIndex
-DROP INDEX "User_gender_createdAt_idx";
-
--- DropIndex
-DROP INDEX "User_gender_idx";
-
--- DropIndex
-DROP INDEX "User_location_idx";
-
--- DropIndex
-DROP INDEX "User_location_trgm_idx";
-
--- DropIndex
-DROP INDEX "User_name_idx";
-
--- DropIndex
-DROP INDEX "User_name_trgm_idx";
-
--- DropIndex
-DROP INDEX "User_role_createdAt_idx";
-
--- DropIndex
-DROP INDEX "User_role_idx";
-
--- AlterTable
-ALTER TABLE "Organization" DROP COLUMN "industry",
-DROP COLUMN "plan",
-DROP COLUMN "region",
-DROP COLUMN "seats",
-ADD COLUMN     "assetSeq" INTEGER NOT NULL DEFAULT 0;
-
--- AlterTable
-ALTER TABLE "PasswordResetToken" DROP COLUMN "email",
-ADD COLUMN     "userId" TEXT NOT NULL;
-
--- AlterTable
-ALTER TABLE "User" DROP COLUMN "gender",
-DROP COLUMN "location",
-ADD COLUMN     "departmentId" TEXT,
-ADD COLUMN     "orgId" TEXT NOT NULL,
-ADD COLUMN     "passwordHash" TEXT NOT NULL,
-ADD COLUMN     "status" "ActiveStatus" NOT NULL DEFAULT 'ACTIVE',
-DROP COLUMN "role",
-ADD COLUMN     "role" "Role" NOT NULL DEFAULT 'EMPLOYEE';
-
--- DropTable
-DROP TABLE "ActivityEvent";
-
--- DropTable
-DROP TABLE "ObjectAsset";
-
--- DropTable
-DROP TABLE "PasswordCredential";
-
--- DropTable
-DROP TABLE "Product";
-
--- DropEnum
-DROP TYPE "ActivityAction";
-
--- DropEnum
-DROP TYPE "OrganizationPlan";
-
--- DropEnum
-DROP TYPE "ProductStatus";
-
--- DropEnum
-DROP TYPE "UserRole";
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "Department" (
@@ -388,6 +270,47 @@ CREATE TABLE "ActivityLog" (
     CONSTRAINT "ActivityLog_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "AuthSession" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AuthSession_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PasswordResetToken" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "usedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PasswordResetToken_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Organization_slug_key" ON "Organization"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE INDEX "User_orgId_idx" ON "User"("orgId");
+
+-- CreateIndex
+CREATE INDEX "User_departmentId_idx" ON "User"("departmentId");
+
+-- CreateIndex
+CREATE INDEX "User_orgId_role_idx" ON "User"("orgId", "role");
+
+-- CreateIndex
+CREATE INDEX "User_orgId_status_idx" ON "User"("orgId", "status");
+
 -- CreateIndex
 CREATE INDEX "Department_orgId_idx" ON "Department"("orgId");
 
@@ -533,19 +456,16 @@ CREATE INDEX "ActivityLog_entityType_entityId_idx" ON "ActivityLog"("entityType"
 CREATE INDEX "ActivityLog_actorId_idx" ON "ActivityLog"("actorId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "AuthSession_tokenHash_key" ON "AuthSession"("tokenHash");
+
+-- CreateIndex
+CREATE INDEX "AuthSession_userId_idx" ON "AuthSession"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PasswordResetToken_tokenHash_key" ON "PasswordResetToken"("tokenHash");
+
+-- CreateIndex
 CREATE INDEX "PasswordResetToken_userId_idx" ON "PasswordResetToken"("userId");
-
--- CreateIndex
-CREATE INDEX "User_orgId_idx" ON "User"("orgId");
-
--- CreateIndex
-CREATE INDEX "User_departmentId_idx" ON "User"("departmentId");
-
--- CreateIndex
-CREATE INDEX "User_orgId_role_idx" ON "User"("orgId", "role");
-
--- CreateIndex
-CREATE INDEX "User_orgId_status_idx" ON "User"("orgId", "status");
 
 -- AddForeignKey
 ALTER TABLE "User" ADD CONSTRAINT "User_orgId_fkey" FOREIGN KEY ("orgId") REFERENCES "Organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -653,4 +573,8 @@ ALTER TABLE "ActivityLog" ADD CONSTRAINT "ActivityLog_orgId_fkey" FOREIGN KEY ("
 ALTER TABLE "ActivityLog" ADD CONSTRAINT "ActivityLog_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "AuthSession" ADD CONSTRAINT "AuthSession_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "PasswordResetToken" ADD CONSTRAINT "PasswordResetToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
