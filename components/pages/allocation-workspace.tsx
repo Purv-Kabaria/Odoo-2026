@@ -56,16 +56,13 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
     setIsLoading(true);
     try {
       const [assetsRes, allocRes, transferRes] = await Promise.all([
-        // Not filtered to AVAILABLE: a user needs to be able to pick an
-        // already-allocated asset and hit the blocked-banner-into-transfer
-        // flow below — that's the flagship interaction, not an edge case.
-        canAllocate ? fetch("/api/assets?limit=100") : null,
+        canAllocate ? fetch("/api/assets?status=AVAILABLE&limit=100") : null,
         fetch(`/api/allocations?scope=${scope}&limit=50`),
         canApprove ? fetch("/api/transfers?status=REQUESTED") : null,
       ]);
       if (assetsRes) {
         const json = await readApiResponse<{ data: Asset[] }>(assetsRes, "Failed to load assets");
-        setAssets(json.data.filter((a) => !a.isBookable && a.status !== "RETIRED" && a.status !== "DISPOSED"));
+        setAssets(json.data.filter((a) => !a.isBookable));
       }
       const allocJson = await readApiResponse<{ data: AllocationRow[] }>(allocRes, "Failed to load allocations");
       setAllocations(allocJson.data);
@@ -226,12 +223,7 @@ export function AllocationWorkspace({ canAllocate, canApprove }: { canAllocate: 
                 <Select value={assetId} onValueChange={setAssetId}>
                   <SelectTrigger id="alloc-asset" className="cursor-pointer"><SelectValue placeholder="Select an available asset" /></SelectTrigger>
                   <SelectContent>
-                    {assets.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.assetTag} — {a.name}
-                        {a.status !== "AVAILABLE" ? ` (${a.status.replace("_", " ").toLowerCase()})` : ""}
-                      </SelectItem>
-                    ))}
+                    {assets.map((a) => <SelectItem key={a.id} value={a.id}>{a.assetTag} — {a.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

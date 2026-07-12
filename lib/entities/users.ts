@@ -46,14 +46,7 @@ export const usersEntityConfig: EntityConfig = {
       key: 'status',
       label: 'Status',
       type: 'select',
-      // "Pending Approval" is set only by the invite flow and cleared
-      // automatically once the invited user sets their password — included
-      // here so a pending row still renders/round-trips correctly in the
-      // directory table, not as something to hand-pick. The DB's
-      // User_password_or_pending_check constraint rejects any attempt to
-      // flip a still-passwordless user to Active from this form.
       options: [
-        { label: 'Pending Approval', value: 'PENDING_APPROVAL' },
         { label: 'Active', value: 'ACTIVE' },
         { label: 'Inactive', value: 'INACTIVE' },
       ],
@@ -71,16 +64,14 @@ export const usersEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'ASSET_MANAGER'],
-    // No generic "create" here — a User row needs a hashed password and an
-    // orgId, neither of which this scalar-column form can produce safely;
-    // account creation goes through /signup instead.
-    create: [],
+    read: ['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD'],
+    create: ['ADMIN', 'ASSET_MANAGER'],
     update: ['ADMIN', 'ASSET_MANAGER'],
     delete: ['ADMIN'],
   },
-  // Only an Admin can promote/demote a role — the only role-assignment
-  // entry point per the problem statement (Screen 3 Tab C) and AGENTS.md §6.
+  // Any signed-in Asset Manager can update a user's profile fields, but only an
+  // Admin can promote/demote a role — prevents a Moderator from granting
+  // themselves (or anyone) Admin access.
   restrictedFields: {
     fields: ['role'],
     allowedRoles: ['ADMIN'],

@@ -3,7 +3,7 @@ import type { Prisma, Role } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
-export type ActivityLogView = {
+export type ActivityEventView = {
   id: string;
   action: string;
   entityType: string;
@@ -19,11 +19,12 @@ export type ActivityLogView = {
 };
 
 type RecordActivityEventInput = {
-  orgId: string;
   action: string;
   entityType: string;
-  entityId: string;
+  entityId?: string | null;
   actorId?: string | null;
+  orgId: string;
+  summary?: string;
   metadata?: Prisma.InputJsonValue;
 };
 
@@ -44,20 +45,15 @@ const activitySelect = {
   },
 } satisfies Prisma.ActivityLogSelect;
 
-function toActivityLogView(
+function toActivityEventView(
   event: Prisma.ActivityLogGetPayload<{ select: typeof activitySelect }>,
-): ActivityLogView {
+): ActivityEventView {
   return {
     ...event,
     createdAt: event.createdAt.toISOString(),
   };
 }
 
-/**
- * `action` is a free-text string (`"asset.allocated"` style) rather than a
- * fixed enum — the AssetFlow schema's `ActivityLog.action` column is a
- * plain string, so new action vocabulary never needs a migration.
- */
 export async function recordActivityEvent(
   input: RecordActivityEventInput,
 ): Promise<void> {
@@ -67,7 +63,7 @@ export async function recordActivityEvent(
         orgId: input.orgId,
         action: input.action,
         entityType: input.entityType,
-        entityId: input.entityId,
+        entityId: input.entityId ?? "",
         actorId: input.actorId ?? null,
         metadata: input.metadata,
       },
@@ -76,7 +72,7 @@ export async function recordActivityEvent(
     logger.warn("activity.record_failed", {
       action: input.action,
       entityType: input.entityType,
-      entityId: input.entityId,
+      entityId: input.entityId ?? null,
       errorMessage: error instanceof Error ? error.message : "Unknown activity error",
     });
   }
@@ -85,16 +81,16 @@ export async function recordActivityEvent(
 export async function listActivityEvents({
   limit,
   since,
-  orgId,
   actorId,
+  orgId,
   includeAll,
 }: {
   limit: number;
   since?: Date;
-  orgId: string;
   actorId: string;
+  orgId: string;
   includeAll: boolean;
-}): Promise<ActivityLogView[]> {
+}): Promise<ActivityEventView[]> {
   const where: Prisma.ActivityLogWhereInput = {
     orgId,
     ...(includeAll ? {} : { actorId }),
@@ -108,5 +104,5 @@ export async function listActivityEvents({
     select: activitySelect,
   });
 
-  return events.map(toActivityLogView);
+  return events.map(toActivityEventView);
 }
