@@ -15,7 +15,7 @@ import {
   setJsonCache,
 } from '@/lib/redis-cache';
 import { BulkDeleteSchema, BulkUpdateSchema } from '@/types/entity-types';
-import type { Role } from '@prisma/client';
+import type { UserRole } from '@prisma/client';
 
 import { getDelegate } from './prisma-delegate';
 import type { FilterRuleInput, SortRuleInput } from './query';
@@ -23,7 +23,7 @@ import { buildOrderBy, buildWhere, parseListQuery } from './query';
 import { canPerform } from './types';
 import type { EntityColumn, EntityConfig } from './types';
 
-const EntityIdSchema = z.object({ id: z.string().cuid('Invalid identifier') });
+const EntityIdSchema = z.object({ id: z.uuid('Invalid identifier') });
 
 type EntityListCacheValue = {
   rows: Record<string, unknown>[];
@@ -66,7 +66,7 @@ export function invalidateEntityListCache(config: EntityConfig): Promise<void> {
 
 function entityCacheKey(
   config: EntityConfig,
-  role: Role,
+  role: UserRole,
   input: {
     page: number;
     limit: number;
@@ -284,7 +284,6 @@ export function createCollectionHandlers(config: EntityConfig) {
         action: 'CREATED',
         actorId: user.id,
         entityType: config.key,
-        orgId: user.orgId,
         entityId: created.id as string,
         summary: `${config.singularLabel} created`,
         requestId,
@@ -360,7 +359,6 @@ export function createCollectionHandlers(config: EntityConfig) {
         action: 'BULK_UPDATED',
         actorId: user.id,
         entityType: config.key,
-        orgId: user.orgId,
         summary: `${result.count} ${config.label.toLowerCase()} updated`,
         requestId,
         metadata: {
@@ -417,7 +415,6 @@ export function createCollectionHandlers(config: EntityConfig) {
         action: 'BULK_DELETED',
         actorId: user.id,
         entityType: config.key,
-        orgId: user.orgId,
         summary: `${result.count} ${config.label.toLowerCase()} deleted`,
         requestId,
         metadata: {
@@ -500,7 +497,6 @@ export function createItemHandlers(config: EntityConfig) {
         action: 'UPDATED',
         actorId: user.id,
         entityType: config.key,
-        orgId: user.orgId,
         entityId: idResult.data.id,
         summary: `${config.singularLabel} updated`,
         requestId,
@@ -556,7 +552,6 @@ export function createItemHandlers(config: EntityConfig) {
         action: 'DELETED',
         actorId: user.id,
         entityType: config.key,
-        orgId: user.orgId,
         entityId: idResult.data.id,
         summary: `${config.singularLabel} deleted`,
         requestId,

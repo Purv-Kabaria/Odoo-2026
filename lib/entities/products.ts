@@ -6,7 +6,7 @@ export const productsEntityConfig: EntityConfig = {
   key: 'products',
   label: 'Products',
   singularLabel: 'Product',
-  prismaModel: 'asset',
+  prismaModel: 'product',
   schema: ProductWriteSchema,
   defaultSort: { field: 'createdAt', order: 'desc' },
   search: { indexEnv: 'MEILISEARCH_PRODUCTS_INDEX' },
@@ -74,9 +74,9 @@ export const productsEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'ASSET_MANAGER'],
-    create: ['ADMIN', 'ASSET_MANAGER'],
-    update: ['ADMIN', 'ASSET_MANAGER'],
-    delete: ['ADMIN', 'ASSET_MANAGER'],
+    read: ['ADMIN', 'MODERATOR'],
+    create: ['ADMIN', 'MODERATOR'],
+    update: ['ADMIN', 'MODERATOR'],
+    delete: ['ADMIN', 'MODERATOR'],
   },
 };

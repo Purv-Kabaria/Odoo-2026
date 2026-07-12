@@ -1,0 +1,19 @@
+-- Same recurring cause as 20260712053800_restore_trgm_indexes and
+-- 20260712060000_restore_trgm_indexes_2: pg_trgm GIN indexes aren't
+-- expressible in schema.prisma, so every `migrate dev` run drops them as
+-- unmanaged drift regardless of which tables the migration actually
+-- touches. Recreate them.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX IF NOT EXISTS "User_name_trgm_idx" ON "User" USING gin ("name" gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "User_email_trgm_idx" ON "User" USING gin ("email" gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "User_location_trgm_idx" ON "User" USING gin ("location" gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS "Product_name_trgm_idx" ON "Product" USING gin ("name" gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "Product_sku_trgm_idx" ON "Product" USING gin ("sku" gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "Product_category_trgm_idx" ON "Product" USING gin ("category" gin_trgm_ops);
+
+CREATE INDEX IF NOT EXISTS "Organization_name_trgm_idx" ON "Organization" USING gin ("name" gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "Organization_slug_trgm_idx" ON "Organization" USING gin ("slug" gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "Organization_industry_trgm_idx" ON "Organization" USING gin ("industry" gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "Organization_region_trgm_idx" ON "Organization" USING gin ("region" gin_trgm_ops);

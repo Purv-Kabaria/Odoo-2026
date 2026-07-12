@@ -42,8 +42,8 @@ function AuthShell({ title, description, badge, eyebrow, footerHref, footerLabel
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex items-center gap-3 rounded-xl border border-border bg-card/80 p-4 shadow-sm backdrop-blur">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-primary/10 text-primary">
+            <div className="flex items-center gap-3 rounded-none border border-border bg-card/80 p-4 shadow-sm backdrop-blur">
+              <div className="flex size-10 items-center justify-center border border-border bg-primary/10 text-primary">
                 <ShieldCheck className="size-4" />
               </div>
               <div>
@@ -51,8 +51,8 @@ function AuthShell({ title, description, badge, eyebrow, footerHref, footerLabel
                 <p className="text-xs text-muted-foreground">Minimal client surface and clear server boundaries.</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 rounded-xl border border-border bg-card/80 p-4 shadow-sm backdrop-blur">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-primary/10 text-primary">
+            <div className="flex items-center gap-3 rounded-none border border-border bg-card/80 p-4 shadow-sm backdrop-blur">
+              <div className="flex size-10 items-center justify-center border border-border bg-primary/10 text-primary">
                 <ShieldCheck className="size-4" />
               </div>
               <div>
