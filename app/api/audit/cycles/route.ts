@@ -4,6 +4,7 @@ import { recordActivityEvent } from '@/lib/activity-events';
 import { Api } from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { createNotifications } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { AuditCycleCreateSchema, AuditCycleListQuerySchema } from '@/types/audit-types';
 
@@ -188,6 +189,14 @@ export async function POST(req: Request) {
       summary: `Audit cycle "${name}" created with ${itemCount} asset(s) in scope`,
       requestId,
       metadata: { scopeType, itemCount, auditorCount: auditorIds.length },
+    });
+    void createNotifications({
+      recipientIds: auditorIds,
+      type: 'AUDIT_CYCLE_ASSIGNED',
+      title: `You were assigned to audit cycle "${name}"`,
+      entityType: 'auditCycle',
+      entityId: cycle.id,
+      metadata: { scopeType, itemCount },
     });
 
     logger.info('audit.cycle.create', { requestId, cycleId: cycle.id, itemCount });

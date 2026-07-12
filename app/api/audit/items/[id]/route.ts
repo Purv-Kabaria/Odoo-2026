@@ -4,6 +4,7 @@ import { recordActivityEvent } from '@/lib/activity-events';
 import { Api } from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
 import { logger } from '@/lib/logger';
+import { createNotifications } from '@/lib/notifications';
 import { prisma } from '@/lib/prisma';
 import { AuditItemMarkSchema } from '@/types/audit-types';
 
@@ -78,6 +79,24 @@ export async function PATCH(
       requestId,
       metadata: { cycleId: item.cycleId, status },
     });
+
+    if ((status === 'MISSING' || status === 'DAMAGED') && updated) {
+      void (async () => {
+        const admins = await prisma.user.findMany({
+          where: { role: 'ADMIN' },
+          select: { id: true },
+        });
+        void createNotifications({
+          recipientIds: admins.map((admin) => admin.id),
+          type: 'AUDIT_DISCREPANCY_FLAGGED',
+          title: `${updated.asset.assetTag} flagged ${status.toLowerCase()}`,
+          body: updated.note ?? undefined,
+          entityType: 'auditItem',
+          entityId: itemId,
+          metadata: { cycleId: item.cycleId, assetTag: updated.asset.assetTag, status },
+        });
+      })();
+    }
 
     logger.info('audit.item.mark', { requestId, itemId, status, userId: user.id });
 
