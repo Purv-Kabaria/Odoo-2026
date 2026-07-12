@@ -26,12 +26,9 @@ export async function POST(req: Request) {
     }
 
     const { email, password, rememberMe } = validation.data;
-    const user = await prisma.user.findUnique({
-      where: { email },
-      include: { credential: true },
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user?.credential || !verifyPassword(password, user.credential)) {
+    if (!user || !verifyPassword(password, user)) {
       return Api.unauthorized("Invalid email or password");
     }
 
