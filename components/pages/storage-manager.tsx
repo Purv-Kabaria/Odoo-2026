@@ -119,7 +119,7 @@ export function StorageManager() {
             className="hidden"
             id="storage-upload"
           />
-          <Button asChild className="w-full cursor-pointer sm:w-auto">
+          <Button asChild className="w-full cursor-pointer rounded-none sm:w-auto">
             <label htmlFor="storage-upload">
               {isUploading ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -167,7 +167,7 @@ export function StorageManager() {
                 </div>
               </div>
               <div className="mt-3 flex gap-2">
-                <Button asChild variant="outline" size="sm" className="flex-1 cursor-pointer">
+                <Button asChild variant="outline" size="sm" className="flex-1 cursor-pointer rounded-none">
                   <a href={`/api/storage/${object.id}`}>
                     <Download className="size-4" />
                     Download
@@ -177,7 +177,7 @@ export function StorageManager() {
                   type="button"
                   variant="destructive"
                   size="sm"
-                  className="cursor-pointer"
+                  className="cursor-pointer rounded-none"
                   onClick={() => void handleDelete(object.id)}
                 >
                   <Trash2 className="size-4" />

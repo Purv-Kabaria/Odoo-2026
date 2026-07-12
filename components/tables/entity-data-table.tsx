@@ -49,7 +49,7 @@ import {
 } from "@/lib/entities-client";
 import { canPerform } from "@/lib/entities/types";
 import type { EntityColumn, EntityConfig } from "@/lib/entities/types";
-import type { Role } from "@prisma/client";
+import type { UserRole } from "@prisma/client";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -78,7 +78,7 @@ function renderCellValue(column: EntityColumn, value: unknown): string {
 
 type EntityDataTableProps = {
   config: EntityConfig;
-  currentUserRole: Role;
+  currentUserRole: UserRole;
 };
 
 export function EntityDataTable({ config, currentUserRole }: EntityDataTableProps) {
@@ -356,7 +356,7 @@ export function EntityDataTable({ config, currentUserRole }: EntityDataTableProp
               variant="ghost"
               size="sm"
               onClick={() => setSearchInput("")}
-              className={`absolute right-0 top-0 h-9 px-2.5 cursor-pointer ${tableToolbarTextClass} text-muted-foreground`}
+              className={`absolute right-0 top-0 h-9 rounded-none px-2.5 cursor-pointer ${tableToolbarTextClass} text-muted-foreground`}
             >
               Clear
             </Button>
