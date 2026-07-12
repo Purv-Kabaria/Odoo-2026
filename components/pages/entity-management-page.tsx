@@ -10,11 +10,14 @@ import type { Role } from "@prisma/client";
 type EntityManagementPageProps = {
   entityKey: string;
   currentUserRole: Role;
+  /** Optional page-level action (e.g. "Invite user") rendered next to the title. */
+  headerActions?: React.ReactNode;
 };
 
 export function EntityManagementPage({
   entityKey,
   currentUserRole,
+  headerActions,
 }: EntityManagementPageProps) {
   const config = getEntityConfig(entityKey);
 
@@ -48,6 +51,7 @@ export function EntityManagementPage({
               {config.label.toLowerCase()} from one optimized table.
             </p>
           </div>
+          {headerActions}
         </div>
       </div>
 

@@ -88,5 +88,14 @@ export async function getCurrentUser() {
     return null;
   }
 
+  // A user deactivated mid-session must lose access immediately, not once
+  // their existing session token happens to expire (up to 30 days later).
+  if (session.user.status !== 'ACTIVE') {
+    void prisma.authSession.deleteMany({
+      where: { tokenHash: hashToken(token) },
+    });
+    return null;
+  }
+
   return session.user;
 }
