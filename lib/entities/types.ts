@@ -58,7 +58,7 @@ export type EntityConfig = {
   key: string;
   label: string;
   singularLabel: string;
-  prismaModel: 'user' | 'product' | 'organization';
+  prismaModel: 'user' | 'product' | 'organization' | 'asset' | 'department';
   columns: EntityColumn[];
   /** Validates both create and update payloads (id/createdAt/updatedAt omitted). */
   schema: z.ZodTypeAny;

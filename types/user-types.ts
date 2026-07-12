@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const UserSchema = z.object({
-  id: z.string().cuid().optional(),
+  id: z.uuid().optional(),
   name: z.string().trim().min(2, 'Name must be at least 2 characters').max(120),
   email: z
     .string()
@@ -27,7 +27,7 @@ export const UserWriteSchema = UserSchema.omit({
 export type UserWriteInput = z.infer<typeof UserWriteSchema>;
 
 export const UserIdSchema = z.object({
-  id: z.string().cuid('Invalid user identifier'),
+  id: z.uuid('Invalid user identifier'),
 });
 
 export interface ApiResponse<T> {
