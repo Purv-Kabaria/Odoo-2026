@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { readApiResponse } from "@/lib/api-client";
 import { formatTableDate } from "@/lib/date-format";
-import type { ActivityAction, Prisma, UserRole } from "@prisma/client";
+import type { Prisma, Role } from "@prisma/client";
 
 type ActivityEvent = {
   id: string;
@@ -24,7 +24,7 @@ type ActivityEvent = {
     id: string;
     name: string;
     email: string;
-    role: UserRole;
+    role: Role;
   } | null;
 };
 

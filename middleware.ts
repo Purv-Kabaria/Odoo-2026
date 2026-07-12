@@ -10,7 +10,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/session-cookie";
  * database. This never imports Prisma or any Node-only module so it stays
  * eligible for the Edge runtime.
  */
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const hasSessionCookie = Boolean(request.cookies.get(SESSION_COOKIE_NAME)?.value);
 
   if (!hasSessionCookie) {
@@ -27,10 +27,11 @@ export const config = {
     "/account/:path*",
     "/activity/:path*",
     "/admin/:path*",
-    "/moderator/:path*",
-    "/storage/:path*",
+    "/assets/:path*",
+    "/departments/:path*",
+    "/bookings/:path*",
+    "/maintenance/:path*",
+    "/audit/:path*",
     "/users/:path*",
-    "/products/:path*",
-    "/organizations/:path*",
   ],
 };

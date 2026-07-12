@@ -15,7 +15,7 @@ import {
   setJsonCache,
 } from '@/lib/redis-cache';
 import { BulkDeleteSchema, BulkUpdateSchema } from '@/types/entity-types';
-import type { UserRole } from '@prisma/client';
+import type { Role } from '@prisma/client';
 
 import { getDelegate } from './prisma-delegate';
 import type { FilterRuleInput, SortRuleInput } from './query';
@@ -66,7 +66,7 @@ export function invalidateEntityListCache(config: EntityConfig): Promise<void> {
 
 function entityCacheKey(
   config: EntityConfig,
-  role: UserRole,
+  role: Role,
   input: {
     page: number;
     limit: number;
