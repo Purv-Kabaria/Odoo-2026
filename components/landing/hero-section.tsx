@@ -22,9 +22,9 @@ export function HeroSection() {
               transition={{ duration: 0.5 }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              className="inline-flex items-center rounded-none border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-6 shadow-sm cursor-pointer hover:bg-primary/20 transition-colors group"
+              className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary mb-6 shadow-sm cursor-pointer hover:bg-primary/20 transition-colors group"
             >
-              <span className="flex h-2 w-2 rounded-none bg-primary mr-2 animate-pulse"></span>
+              <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
               v2.0 is now live
               <ChevronRight className="ml-1 size-4 group-hover:translate-x-1 transition-transform" />
             </motion.div>
@@ -55,13 +55,13 @@ export function HeroSection() {
               className="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start"
             >
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto">
-                <Button size="lg" className="rounded-none px-8 h-12 w-full shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all cursor-pointer group">
+                <Button size="lg" className="px-8 h-12 w-full shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all cursor-pointer group">
                   Start Building <ArrowRight className="ml-2 size-4 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </motion.div>
               
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="w-full sm:w-auto">
-                <Button variant="outline" size="lg" className="rounded-none px-8 h-12 w-full shadow-sm hover:bg-muted/80 transition-all cursor-pointer group">
+                <Button variant="outline" size="lg" className="px-8 h-12 w-full shadow-sm hover:bg-muted/80 transition-all cursor-pointer group">
                   <BookOpen className="mr-2 size-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                   Read the Docs
                 </Button>
