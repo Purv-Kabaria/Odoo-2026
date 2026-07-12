@@ -47,6 +47,8 @@ export type EntityPermissions = Record<EntityAction, Role[]>;
  * Extra guard for fields within an entity that need a stricter role than
  * the entity's general `update` permission — e.g. any signed-in Asset
  * Manager can update a user's name, but only an Admin can change their role.
+ * the entity's general `update` permission — e.g. any signed-in Asset Manager
+ * can update a user's name, but only an Admin can change their role.
  */
 export type RestrictedFields = {
   fields: string[];
@@ -58,7 +60,7 @@ export type EntityConfig = {
   key: string;
   label: string;
   singularLabel: string;
-  prismaModel: 'user' | 'organization';
+  prismaModel: 'user' | 'organization' | 'department' | 'asset' | 'assetCategory';
   columns: EntityColumn[];
   /** Validates both create and update payloads (id/createdAt/updatedAt omitted). */
   schema: z.ZodTypeAny;
@@ -67,6 +69,14 @@ export type EntityConfig = {
   defaultSort: { field: string; order: 'asc' | 'desc' };
   /** Omit entirely for Postgres-only search (no Meilisearch index for this entity). */
   search?: { indexEnv: string };
+  /**
+   * The generic CRUD engine has no other way to know how a model relates to
+   * the caller's tenant — every operation (list/count/update/delete, bulk or
+   * single) ANDs this into its `where` clause, keyed off the requester's
+   * `orgId`. Omitting this on a multi-tenant model is a cross-tenant IDOR:
+   * the engine will happily list, edit, or bulk-delete every org's rows.
+   */
+  tenantScope?: (userOrgId: string) => Record<string, unknown>;
 };
 
 /**

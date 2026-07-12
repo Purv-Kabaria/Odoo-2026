@@ -23,7 +23,7 @@ import { buildOrderBy, buildWhere, parseListQuery } from './query';
 import { canPerform } from './types';
 import type { EntityColumn, EntityConfig } from './types';
 
-const EntityIdSchema = z.object({ id: z.string().cuid('Invalid identifier') });
+const EntityIdSchema = z.object({ id: z.string().uuid('Invalid identifier') });
 
 type EntityListCacheValue = {
   rows: Record<string, unknown>[];
@@ -54,6 +54,21 @@ function attemptedRestrictedFields(
 function isRestrictedFieldAllowed(config: EntityConfig, role: string): boolean {
   if (!config.restrictedFields) return true;
   return (config.restrictedFields.allowedRoles as string[]).includes(role);
+}
+
+/**
+ * ANDs `config.tenantScope` (if any) into a where clause without risking a
+ * key collision with the caller-built clause — every generic operation
+ * (list/count/update/delete) must go through this, since the delegate is a
+ * raw, unscoped Prisma model with no other tenant boundary.
+ */
+function withTenantScope(
+  config: EntityConfig,
+  userOrgId: string,
+  where: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!config.tenantScope) return where;
+  return { AND: [where, config.tenantScope(userOrgId)] };
 }
 
 function entityCachePrefix(config: EntityConfig): string {
@@ -182,17 +197,21 @@ export function createCollectionHandlers(config: EntityConfig) {
 
       const meiliIds = search
         ? await searchInMeili(
-            config,
-            search,
-            Math.min(1000, Math.max(limit * page, 50)),
-          )
+          config,
+          search,
+          Math.min(1000, Math.max(limit * page, 50)),
+        )
         : null;
 
-      const where = buildWhere(config, {
-        search,
-        filters,
-        searchIds: meiliIds ?? undefined,
-      });
+      const where = withTenantScope(
+        config,
+        user.orgId,
+        buildWhere(config, {
+          search,
+          filters,
+          searchIds: meiliIds ?? undefined,
+        }),
+      );
       const orderBy = buildOrderBy(config, sorts);
       const delegate = getDelegate(config);
 
@@ -344,12 +363,13 @@ export function createCollectionHandlers(config: EntityConfig) {
       if (!normalized.success) return Api.badRequest(normalized.error);
 
       const delegate = getDelegate(config);
+      const scopedIdsWhere = withTenantScope(config, user.orgId, { id: { in: ids } });
       const result = await delegate.updateMany({
-        where: { id: { in: ids } },
+        where: scopedIdsWhere,
         data: { [field]: normalized.value },
       });
       const updatedRows = await delegate.findMany({
-        where: { id: { in: ids } },
+        where: scopedIdsWhere,
       });
 
       void upsertInSearch(config, updatedRows);
@@ -405,9 +425,12 @@ export function createCollectionHandlers(config: EntityConfig) {
 
       const ids = validation.data.ids;
       const delegate = getDelegate(config);
-      const result = await delegate.deleteMany(
-        ids && ids.length > 0 ? { where: { id: { in: ids } } } : {},
+      const scopedWhere = withTenantScope(
+        config,
+        user.orgId,
+        ids && ids.length > 0 ? { id: { in: ids } } : {},
       );
+      const result = await delegate.deleteMany({ where: scopedWhere });
 
       void deleteFromSearch(config, ids);
       void invalidateEntityListCache(config);
@@ -482,8 +505,8 @@ export function createItemHandlers(config: EntityConfig) {
       }
 
       const delegate = getDelegate(config);
-      const existing = await delegate.findUnique({
-        where: { id: idResult.data.id },
+      const existing = await delegate.findFirst({
+        where: withTenantScope(config, user.orgId, { id: idResult.data.id }),
       });
       if (!existing) return Api.notFound(`${config.singularLabel} not found`);
 
@@ -539,8 +562,8 @@ export function createItemHandlers(config: EntityConfig) {
         return Api.badRequest('Invalid identifier', idResult.error.format());
 
       const delegate = getDelegate(config);
-      const existing = await delegate.findUnique({
-        where: { id: idResult.data.id },
+      const existing = await delegate.findFirst({
+        where: withTenantScope(config, user.orgId, { id: idResult.data.id }),
       });
       if (!existing) return Api.noContent(); // idempotent: deleting an already-gone resource is a no-op success
 

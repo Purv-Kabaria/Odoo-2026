@@ -10,6 +10,7 @@ export const usersEntityConfig: EntityConfig = {
   schema: UserWriteSchema,
   defaultSort: { field: 'createdAt', order: 'desc' },
   search: { indexEnv: 'MEILISEARCH_USERS_INDEX' },
+  tenantScope: (orgId) => ({ orgId }),
   columns: [
     {
       key: 'name',
@@ -71,16 +72,19 @@ export const usersEntityConfig: EntityConfig = {
     },
   ],
   permissions: {
-    read: ['ADMIN', 'ASSET_MANAGER'],
-    // No generic "create" here — a User row needs a hashed password and an
-    // orgId, neither of which this scalar-column form can produce safely;
-    // account creation goes through /signup instead.
+    read: ['ADMIN', 'ASSET_MANAGER', 'DEPARTMENT_HEAD'],
+    // No generic "create" here — the generic form has no path to a hashed
+    // password or an invite token, so it would silently create a
+    // permanently-unusable account (PENDING_APPROVAL, no password, no
+    // invite link ever sent). Account creation goes through /signup or
+    // POST /api/users/invite instead, both of which handle that properly.
     create: [],
     update: ['ADMIN', 'ASSET_MANAGER'],
     delete: ['ADMIN'],
   },
-  // Only an Admin can promote/demote a role — the only role-assignment
-  // entry point per the problem statement (Screen 3 Tab C) and AGENTS.md §6.
+  // Any signed-in Asset Manager can update a user's profile fields, but only an
+  // Admin can promote/demote a role — prevents a Moderator from granting
+  // themselves (or anyone) Admin access.
   restrictedFields: {
     fields: ['role'],
     allowedRoles: ['ADMIN'],
