@@ -480,8 +480,12 @@ model Booking {
   // Only Booking gets a check-in concept — a scheduled session someone
   // should show up for. Allocation has no analogous "arrival" step
   // anywhere in the spec; an allocation is considered delivered the
-  // moment it's created.
-  checkedIn        Boolean       @default(false)
+  // moment it's created. checkInDeadline starts at startTime + 15m and is
+  // pushed once by +5m (checkInGraceExtended flips true) to give a single
+  // grace-period nudge before auto-cancel.
+  checkedIn            Boolean   @default(false)
+  checkInDeadline      DateTime?
+  checkInGraceExtended Boolean   @default(false)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -497,6 +501,7 @@ model Booking {
   // check scans before the DB exclusion constraint has the final say.
   @@index([assetId, startTime])
   @@index([status, startTime]) // reminder sweep / lifecycle transitions
+  @@index([status, checkedIn, checkInDeadline]) // check-in grace/auto-cancel sweep
 }
 
 // ---------------------------------------------------------------------------
