@@ -192,7 +192,7 @@ export function BookingWorkspace() {
               return (
                 <div
                   key={b.id}
-                  className="absolute left-16 right-2 rounded-md bg-primary/80 px-2 py-1 text-xs text-primary-foreground shadow-sm"
+                  className="absolute left-16 right-2 overflow-hidden truncate rounded-md bg-primary/80 px-2 py-1 text-xs text-primary-foreground shadow-sm"
                   style={{ top: `${Math.max(0, top)}px`, height: `${Math.max(20, height)}px` }}
                 >
                   {b.title ?? "Booked"} — {b.bookedBy?.name}
@@ -241,11 +241,11 @@ export function BookingWorkspace() {
             ) : (
               <ul className="space-y-2">
                 {myBookings.map((b) => (
-                  <li key={b.id} className="flex items-center justify-between border border-border p-2 text-xs">
-                    <span>
+                  <li key={b.id} className="flex items-center justify-between gap-2 border border-border p-2 text-xs">
+                    <span className="min-w-0 truncate">
                       {b.asset?.assetTag} — {new Date(b.startTime).toLocaleString()}
                     </span>
-                    <Button size="sm" variant="outline" className={cn("cursor-pointer")} onClick={() => void handleCancel(b.id)}>
+                    <Button size="sm" variant="outline" className={cn("shrink-0 cursor-pointer")} onClick={() => void handleCancel(b.id)}>
                       Cancel
                     </Button>
                   </li>
