@@ -9,7 +9,6 @@ const BATCH_SIZE = 500;
 const indexes = {
   users: process.env.MEILISEARCH_USERS_INDEX ?? "users",
   organizations: process.env.MEILISEARCH_ORGANIZATIONS_INDEX ?? "organizations",
-  assets: process.env.MEILISEARCH_ASSETS_INDEX ?? "assets",
 };
 
 function headers() {
@@ -52,15 +51,6 @@ async function configureIndexes() {
       body: JSON.stringify({
         searchableAttributes: ["name", "slug"],
         sortableAttributes: ["createdAt", "name"],
-        typoTolerance: { enabled: true },
-      }),
-    }),
-    meiliRequest(`/indexes/${indexes.assets}/settings`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        searchableAttributes: ["assetTag", "name", "category", "serialNumber", "location"],
-        filterableAttributes: ["category", "status", "condition", "location", "isBookable"],
-        sortableAttributes: ["createdAt", "assetTag", "name"],
         typoTolerance: { enabled: true },
       }),
     }),
@@ -120,25 +110,6 @@ async function main() {
       slug: organization.slug,
       createdAt: organization.createdAt.toISOString(),
       updatedAt: organization.updatedAt.toISOString(),
-    }),
-  });
-
-  await indexModel({
-    label: "assets",
-    indexName: indexes.assets,
-    findMany: (args) => prisma.asset.findMany(args),
-    toDocument: (asset) => ({
-      id: asset.id,
-      assetTag: asset.assetTag,
-      name: asset.name,
-      category: asset.category,
-      serialNumber: asset.serialNumber,
-      status: asset.status,
-      condition: asset.condition,
-      location: asset.location,
-      isBookable: asset.isBookable,
-      createdAt: asset.createdAt.toISOString(),
-      updatedAt: asset.updatedAt.toISOString(),
     }),
   });
 }
