@@ -5,6 +5,7 @@ import { Api } from "@/lib/api";
 import { getCurrentUser, hashToken } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { sendInviteEmail } from "@/lib/mail";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { ForbiddenError, requireRole } from "@/lib/rbac";
@@ -94,6 +95,16 @@ export async function POST(req: Request) {
       entityId: invited.id,
       metadata: { role, departmentId: departmentId ?? null },
     });
+
+    // Fire-and-forget: send the invite email. A failed send does NOT roll back
+    // the user creation — the admin can re-trigger via the UI if needed.
+    void sendInviteEmail({
+      to: email,
+      name,
+      setupUrl: inviteUrl,
+      invitedByName: user.name,
+    });
+
     logger.info("users.invite", { requestId, actorId: user.id, invitedId: invited.id });
 
     return Api.created({

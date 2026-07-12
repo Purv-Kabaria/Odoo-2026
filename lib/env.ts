@@ -47,11 +47,13 @@ const EnvSchema = z.object({
   LOKI_PUSH_URL: OptionalUrlSchema,
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
-  // Shared secret for the /api/cron/* trigger endpoints. Vercel Cron Jobs
-  // automatically send this as `Authorization: Bearer <value>` when the env
-  // var is present; point an external scheduler (Upstash QStash, etc.) at
-  // the same header if the deployment can't use native Vercel Cron.
-  CRON_SECRET: z.string().min(16).optional(),
+  // SMTP (Nodemailer) — all optional; when SMTP_HOST is absent, emails are
+  // logged to the console instead of sent (preview mode for local dev).
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
