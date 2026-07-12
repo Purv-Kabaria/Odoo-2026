@@ -15,7 +15,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { VoiceInputButton } from "@/components/forms/voice-input-button";
 import { readApiResponse } from "@/lib/api-client";
 
 type Asset = { id: string; assetTag: string; name: string };
@@ -85,13 +84,7 @@ export function RaiseMaintenanceModal({
             </Select>
           </div>
           <div className="grid gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="maint-description">Describe the issue</Label>
-              <VoiceInputButton
-                label="Dictate issue description"
-                onFinalResult={(text) => setDescription((prev) => (prev ? `${prev} ${text}` : text))}
-              />
-            </div>
+            <Label htmlFor="maint-description">Describe the issue</Label>
             <Textarea id="maint-description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={1000} required />
           </div>
           <div className="grid gap-2">
