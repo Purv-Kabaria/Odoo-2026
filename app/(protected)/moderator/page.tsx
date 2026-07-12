@@ -46,7 +46,7 @@ export default async function ModeratorPage() {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {accessibleEntities.map((config) => (
-          <Card key={config.key} size="sm" className="rounded-none">
+          <Card key={config.key} size="sm">
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -69,7 +69,7 @@ export default async function ModeratorPage() {
               ))}
             </CardContent>
             <div className="border-t border-border p-3">
-              <Button asChild size="sm" className="w-full cursor-pointer rounded-none">
+              <Button asChild size="sm" className="w-full cursor-pointer">
                 <Link href={`/${config.key}`}>
                   Open {config.label}
                   <ArrowRight className="size-4" />

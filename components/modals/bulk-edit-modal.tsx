@@ -92,10 +92,10 @@ export function BulkEditModal({
                 setValue("")
               }}
             >
-              <SelectTrigger className="rounded-none shadow-sm cursor-pointer">
+              <SelectTrigger className="shadow-sm cursor-pointer">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="rounded-none">
+              <SelectContent>
                 {columns.map((c) => (
                   <SelectItem key={c.key} value={c.key} className="cursor-pointer">
                     {c.label}
@@ -109,10 +109,10 @@ export function BulkEditModal({
             <Label>New value</Label>
             {activeColumn?.type === "select" ? (
               <Select value={value} onValueChange={setValue}>
-                <SelectTrigger className="rounded-none shadow-sm cursor-pointer">
+                <SelectTrigger className="shadow-sm cursor-pointer">
                   <SelectValue placeholder="Select a value..." />
                 </SelectTrigger>
-                <SelectContent className="rounded-none">
+                <SelectContent>
                   {activeColumn.options?.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value} className="cursor-pointer">
                       {opt.label}
@@ -122,10 +122,10 @@ export function BulkEditModal({
               </Select>
             ) : activeColumn?.type === "boolean" ? (
               <Select value={value} onValueChange={setValue}>
-                <SelectTrigger className="rounded-none shadow-sm cursor-pointer">
+                <SelectTrigger className="shadow-sm cursor-pointer">
                   <SelectValue placeholder="Select a value..." />
                 </SelectTrigger>
-                <SelectContent className="rounded-none">
+                <SelectContent>
                   <SelectItem value="true" className="cursor-pointer">
                     True
                   </SelectItem>
@@ -139,7 +139,7 @@ export function BulkEditModal({
                 type={activeColumn?.type === "number" ? "number" : "text"}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                className="rounded-none shadow-sm"
+                className="shadow-sm"
               />
             )}
           </div>

@@ -36,7 +36,7 @@ export function Footer() {
             &copy; {COPYRIGHT_YEAR} AssetFlow. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
-            <span className="flex h-2 w-2 rounded-none bg-accent-foreground animate-pulse" />
+            <span className="flex h-2 w-2 rounded-full bg-accent-foreground animate-pulse" />
             <span className="text-sm text-muted-foreground">All systems operational</span>
           </div>
         </div>
