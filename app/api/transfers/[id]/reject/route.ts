@@ -2,6 +2,7 @@ import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
+import { dispatchNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import type { User } from "@prisma/client";
@@ -62,6 +63,16 @@ export async function POST(_req: Request, props: { params: Promise<{ id: string 
       entityId: transfer.id,
       metadata: { assetId: transfer.assetId },
     });
+    void (async () => {
+      const asset = await prisma.asset.findUnique({ where: { id: transfer.assetId }, select: { assetTag: true } });
+      void dispatchNotification({
+        recipientIds: [transfer.requestedById],
+        type: "TRANSFER_REJECTED",
+        title: `Transfer rejected: ${asset?.assetTag ?? "asset"}`,
+        relatedEntityType: "transfer",
+        relatedEntityId: transfer.id,
+      });
+    })();
     logger.info("transfers.reject", { requestId, id: transfer.id });
 
     return Api.ok({ id: transfer.id, status: "REJECTED" });

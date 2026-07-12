@@ -2,6 +2,7 @@ import { recordActivityEvent } from "@/lib/activity-events";
 import { Api } from "@/lib/api";
 import { getCurrentUser } from "@/lib/auth";
 import { logger } from "@/lib/logger";
+import { dispatchNotification } from "@/lib/notifications";
 import { evaluateRetirementRecommendation } from "@/lib/maintenance-retirement";
 import { prisma } from "@/lib/prisma";
 import { deleteCacheByPrefix } from "@/lib/redis-cache";
@@ -59,6 +60,16 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
       entityId: request_.id,
       metadata: {},
     });
+    void (async () => {
+      const asset = await prisma.asset.findUnique({ where: { id: request_.assetId }, select: { assetTag: true } });
+      void dispatchNotification({
+        recipientIds: [request_.raisedById],
+        type: "MAINTENANCE_RESOLVED",
+        title: `${asset?.assetTag ?? "Your asset"} is repaired and available again`,
+        relatedEntityType: "maintenance",
+        relatedEntityId: request_.id,
+      });
+    })();
     // Best-effort, non-blocking — never delays this response, never throws
     // (evaluateRetirementRecommendation catches its own errors). A down or
     // unconfigured LLM just means the card shows no AI flag; managers can
