@@ -17,6 +17,7 @@ Built on Next.js 16, Prisma 6, and PostgreSQL, with Redis, Meilisearch, and S3-c
 - [Key workflows](#key-workflows)
 - [Database design](#database-design)
 - [Why these choices? (caching, search, indexing)](#why-these-choices-caching-search-indexing)
+- [Real-time notifications: delivery guarantees](#real-time-notifications-delivery-guarantees)
 - [Stack](#stack)
 - [Local setup](#local-setup)
 - [Demo logins](#demo-logins)
@@ -62,7 +63,7 @@ Every row cites the actual mechanism and the file it lives in, not just a descri
 | Audit | Guarded cycle close | Brief (robustness requirement) | A guarded `updateMany` means two admins closing the same cycle concurrently can't double-apply the Lost/maintenance side effects | same file |
 | Reports | Full analytics suite | Brief | Utilization by department, maintenance frequency, most-used/idle/near-retirement assets, booking heatmap, department allocation summary | `lib/reports/queries.ts` |
 | Reports | Redis-cached, CSV export | Brief (implied "export") / Team (caching choice) | 60-second cache-aside TTL so the dashboard stays fast under load; every table exports to CSV regardless of collapsed/expanded state | `app/api/reports/route.ts` |
-| Notifications | Real-time delivery | Brief (implied "get notified") | Server-sent events pushed via Redis pub/sub, backed by a durable Postgres row so nothing's lost if the client wasn't connected | `lib/notifications.ts`, `lib/redis-pubsub.ts` |
+| Notifications | Real-time delivery | Brief (implied "get notified") | SSE fan-out across server instances via Redis pub/sub, one shared subscriber connection per instance; Postgres is the source of truth and reconnecting clients get missed events replayed via `Last-Event-ID` | `lib/notifications.ts`, `lib/redis-pubsub.ts`, `app/api/notifications/stream/route.ts` |
 | Notifications | Activity log vs. personal inbox split | Brief | Two distinct concepts sharing one event pipeline: an immutable org-wide audit trail and a per-user read/unread inbox | `lib/activity-events.ts` |
 | Search | Ctrl+K global command palette | **Team** — not in the brief | Debounced, grouped, keyboard-navigable search across assets/employees/departments/organizations; scoped to the caller's org *inside* the Meilisearch query itself, not just the Postgres follow-up, and to what the caller's role can already read | `app/api/search/route.ts`, `components/layout/global-search.tsx` |
 
@@ -330,7 +331,8 @@ sequenceDiagram
     R->>M: search("lap")
     alt Meilisearch reachable
         M-->>R: ranked ids
-        R->>DB: findMany(WHERE id IN [...])
+        R->>DB: findMany(WHERE orgId = ? AND id IN [...])
+        R->>R: re-sort rows into Meilisearch's rank order
         R-->>C: 200 (searchProvider: "meilisearch")
     else Meilisearch down/timeout
         M-->>R: null (never throws)
@@ -339,9 +341,50 @@ sequenceDiagram
     end
 ```
 
+Two details in the Ctrl+K palette are easy to get wrong:
+
+- **Tenant scope inside the index.** The `orgId = "<caller's org>"` filter goes into the Meilisearch query itself, not only into the Postgres follow-up. If it were only applied afterwards, another tenant's higher-scoring documents could fill the top-5 and this org's real matches would be cut before the filter ran. The Postgres query filters by `orgId` again as a second layer.
+- **Keeping the ranking.** `WHERE id IN (...)` returns rows in arbitrary order, which would throw away Meilisearch's relevance ranking, so rows are re-sorted by the order Meilisearch returned. On the client, searches are debounced at 300 ms and a sequence number drops responses that arrive out of order.
+
 ### Why UUIDv7 over auto-increment or UUIDv4
 
 Sequential auto-increment IDs leak business volume (a competitor watching `/assets/1042` learns you have ~1000 assets) and are a worse fit for a multi-tenant system where IDs are handed to the client routinely. Random UUIDv4 solves the leak but destroys B-tree index locality (every insert lands in a random page, causing write amplification on a busy table). UUIDv7 keeps a time-ordered prefix (good index locality, sequential-ish inserts) while the remaining bits stay random (no volume leak, no collision risk) — the best fit for a schema with 20 actively-written tables.
+
+## Real-time notifications: delivery guarantees
+
+Notifications are written to Postgres first; pushing them to the browser is the fast path, not the record. The goal is that a user never misses one, whether they were offline, their Wi-Fi blinked, or they were connected to a different server instance from the one that created the notification.
+
+```mermaid
+sequenceDiagram
+    participant A as Instance A (mutation)
+    participant PG as Postgres
+    participant R as Redis pub/sub
+    participant B as Instance B (user's SSE)
+    participant U as Browser
+
+    A->>PG: INSERT Notification (UUIDv7 id)
+    A->>R: PUBLISH notifications:user:<id>
+    R-->>B: message (B has one shared subscriber)
+    B-->>U: id: <uuid> / data: {...}
+    Note over U: connection drops, events published meanwhile are lost from pub/sub
+    U->>B: reconnect, Last-Event-ID: <last uuid>
+    B->>R: SUBSCRIBE (buffer live messages)
+    B->>PG: SELECT ... WHERE userId = ? AND id > last ORDER BY id
+    B-->>U: replay missed rows, then flush buffer (dedupe by id)
+```
+
+| Concern | How it's handled |
+|---|---|
+| User on a different instance than the writer | Every instance publishes to Redis; whichever instance holds the user's stream receives it |
+| Redis connections grow with users | One subscriber connection per instance; SSE streams are multiplexed in-process and a channel is subscribed on its first listener, unsubscribed on its last |
+| Events while disconnected | Every event carries `id:`. Browsers resend the last one as `Last-Event-ID`, and the server replays newer rows from Postgres (`@@index([userId, id])`, capped at 100) |
+| Gap between "read history" and "subscribe" | Subscribe first and buffer, then replay, then flush; ids are deduped, so overlap is harmless and a gap is impossible |
+| First page load | The notifications page opens its stream with `?since=<newest id it loaded>`; the bell re-reads the unread count from Postgres on every (re)connect |
+| Redis down | Stream still opens and heartbeats; nothing is pushed live, but the next reconnect replays from Postgres |
+
+Why ids work as a cursor: notification ids are UUIDv7, whose first 48 bits are a millisecond timestamp, and Postgres compares `uuid` values byte by byte, so `id > lastSeen` means "created after".
+
+Known edge: Prisma generates `uuid(7)` in the app process, so ordering follows each instance's clock. If two instances' clocks disagree by more than the time between two notifications for the same user, a replay can skip the earlier-stamped one. It is still in Postgres and shows on the next page load. NTP keeps skew in the low milliseconds; a strictly ordered cursor would need a database sequence (`BIGSERIAL`) instead.
 
 ## Stack
 

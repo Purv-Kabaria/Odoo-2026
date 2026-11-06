@@ -121,6 +121,25 @@ export async function listNotifications({
   return { rows: rows.map(toView), nextCursor };
 }
 
+/** Missed-event replay for the SSE stream. Notification ids are UUIDv7: the first 48 bits are a
+ * millisecond timestamp and Postgres compares uuids byte by byte, so `id > lastSeenId` means
+ * "created after the last one this client saw". Served by @@index([userId, id]). Capped so a
+ * client that was offline for weeks gets the newest batch, not an unbounded dump; the
+ * notifications page is still there for the full history. */
+export async function listNotificationsAfter(
+  userId: string,
+  afterId: string,
+  limit = 100,
+): Promise<NotificationView[]> {
+  const rows = await prisma.notification.findMany({
+    where: { userId, id: { gt: afterId } },
+    orderBy: [{ id: "desc" }],
+    take: limit,
+    select: notificationSelect,
+  });
+  return rows.reverse().map(toView);
+}
+
 /** Ownership-guarded and idempotent — re-marking an already-read
  * notification just no-ops-updates it, still returns true; only false
  * when the id doesn't belong to this user (or doesn't exist). */

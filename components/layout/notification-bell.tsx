@@ -25,43 +25,50 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [recent, setRecent] = React.useState<NotificationView[]>([]);
 
-  React.useEffect(() => {
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const response = await fetch("/api/notifications/unread-count", { cache: "no-store" });
-        const json = await readApiResponse<{ data?: { count: number } }>(
-          response,
-          "Failed to load notifications",
-        );
-        if (!cancelled) setUnreadCount(json.data?.count ?? 0);
-      } catch {
-        // Silent — the bell just starts at 0 if this fails.
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+  const refreshUnreadCount = React.useCallback(async () => {
+    try {
+      const response = await fetch("/api/notifications/unread-count", { cache: "no-store" });
+      const json = await readApiResponse<{ data?: { count: number } }>(
+        response,
+        "Failed to load notifications",
+      );
+      setUnreadCount(json.data?.count ?? 0);
+    } catch {
+      // Silent: the bell keeps its last known count.
+    }
   }, []);
 
   React.useEffect(() => {
     const source = new EventSource("/api/notifications/stream");
 
+    // Fires on the first connect and on every automatic reconnect. Postgres owns the unread
+    // count, so re-read it instead of trusting increments across a gap; the stream itself
+    // replays missed events via Last-Event-ID.
+    source.onopen = () => {
+      void refreshUnreadCount();
+    };
+
     source.onmessage = (event) => {
       try {
         const notification = JSON.parse(event.data) as NotificationView;
-        setRecent((current) => [notification, ...current].slice(0, RECENT_LIMIT));
-        setUnreadCount((current) => current + 1);
+        let isNew = true;
+        setRecent((current) => {
+          if (current.some((item) => item.id === notification.id)) {
+            isNew = false;
+            return current;
+          }
+          return [notification, ...current].slice(0, RECENT_LIMIT);
+        });
+        if (!isNew) return;
+        if (!notification.isRead) setUnreadCount((current) => current + 1);
         toast(notification.title, { description: notification.body ?? undefined });
       } catch {
-        // Ignore malformed frames (e.g. a stray heartbeat comment slipping through).
+        // Ignore malformed frames.
       }
     };
 
     return () => source.close();
-  }, []);
+  }, [refreshUnreadCount]);
 
   const markOneRead = async (id: string) => {
     const target = recent.find((item) => item.id === id);

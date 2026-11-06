@@ -2,13 +2,24 @@ import { logger } from "@/lib/logger";
 import { getRedisClient } from "@/lib/redis-cache";
 
 /**
- * Separate from the `RedisCacheClient` type in `lib/redis-cache.ts`: once a
- * connection calls `.subscribe()` it can't run any other command, so the
- * subscriber needs its own dedicated connection (`.duplicate()`), not the
- * shared cache client. This type only exists to describe the extra surface
- * (`publish`/`duplicate`/`connect`/`subscribe`/`unsubscribe`/`quit`) pub/sub
- * needs — the underlying object is the same `redis` client instance either
- * way, so a single local cast at the boundary is enough.
+ * Live notification fan-out across server instances.
+ *
+ * Every instance publishes to `notifications:user:<id>`. Each instance keeps ONE dedicated
+ * subscriber connection (a subscribed Redis connection can't run other commands, so it can't be
+ * the shared cache client) and multiplexes every open SSE stream onto it:
+ *
+ *   SSE stream ─┐
+ *   SSE stream ─┼─ in-process listener map ── 1 subscriber connection ── Redis
+ *   SSE stream ─┘
+ *
+ * A channel is SUBSCRIBEd when its first local listener appears and UNSUBSCRIBEd when its last
+ * one leaves. The earlier design opened a new Redis connection per SSE stream, so Redis
+ * connections grew with open browser tabs (two per tab when the bell and the notifications page
+ * were both mounted). Now they grow with server instances.
+ *
+ * Pub/sub is fire-and-forget: a message published while nobody is subscribed is dropped.
+ * That's acceptable because Postgres is the source of truth; the SSE route replays anything a
+ * reconnecting client missed (see app/api/notifications/stream/route.ts).
  */
 type PubSubListener = (message: string, channel: string) => void;
 
@@ -22,11 +33,57 @@ type RedisPubSubClient = {
   on: (event: "error", listener: (error: Error) => void) => void;
 };
 
+type ChannelEntry = {
+  listeners: Set<(message: string) => void>;
+  ready: Promise<void>;
+};
+
+type Hub = {
+  subscriber: RedisPubSubClient;
+  channels: Map<string, ChannelEntry>;
+};
+
+declare global {
+  var notificationHubPromise: Promise<Hub | null> | undefined;
+}
+
 function channelForUser(userId: string): string {
   return `notifications:user:${userId}`;
 }
 
-/** PUBLISH never needs a dedicated connection — safe on the shared client. */
+async function createHub(): Promise<Hub | null> {
+  const base = (await getRedisClient()) as unknown as RedisPubSubClient | null;
+  if (!base) return null;
+
+  const subscriber = base.duplicate();
+  subscriber.on("error", (error) => {
+    logger.warn("notifications.subscriber_error", {
+      errorMessage: error instanceof Error ? error.message : "Unknown Redis error",
+    });
+  });
+  await subscriber.connect();
+  return { subscriber, channels: new Map() };
+}
+
+/** One hub per server process; survives Next dev hot reload via globalThis. */
+async function getHub(): Promise<Hub | null> {
+  if (!globalThis.notificationHubPromise) {
+    globalThis.notificationHubPromise = createHub();
+  }
+  try {
+    const hub = await globalThis.notificationHubPromise;
+    if (!hub) globalThis.notificationHubPromise = undefined; // Redis not configured yet: retry later
+    return hub;
+  } catch (error) {
+    globalThis.notificationHubPromise = undefined;
+    logger.warn("notifications.subscribe_failed", {
+      errorMessage: error instanceof Error ? error.message : "Unknown Redis error",
+    });
+    return null;
+  }
+}
+
+/** PUBLISH never needs a dedicated connection, so it uses the shared client. */
 export async function publishToUser(userId: string, payload: unknown): Promise<void> {
   try {
     const client = (await getRedisClient()) as unknown as RedisPubSubClient | null;
@@ -46,51 +103,65 @@ export type UserSubscription = {
 };
 
 /**
- * Opens a dedicated subscriber connection for one SSE stream. Returns null
- * if Redis isn't configured/reachable — the caller (the SSE route) must
- * still open the stream and just skip live delivery, never fail the
- * request over an optional accelerator being down.
+ * Registers a listener for one user's channel on this process's shared subscriber. Resolves
+ * only once Redis has confirmed the SUBSCRIBE, so the caller can safely replay from Postgres
+ * afterwards without a gap. Returns null when Redis is unavailable; the SSE route still opens
+ * and the client still gets missed events through replay on its next reconnect.
  */
 export async function createUserSubscription(
   userId: string,
   onMessage: (message: string) => void,
 ): Promise<UserSubscription | null> {
-  const base = (await getRedisClient()) as unknown as RedisPubSubClient | null;
-  if (!base) return null;
+  const hub = await getHub();
+  if (!hub) return null;
+
+  const channel = channelForUser(userId);
+  let entry = hub.channels.get(channel);
+  if (!entry) {
+    const listeners = new Set<(message: string) => void>();
+    const ready = hub.subscriber
+      .subscribe(channel, (message) => {
+        for (const listener of hub.channels.get(channel)?.listeners ?? []) listener(message);
+      })
+      .catch((error: unknown) => {
+        hub.channels.delete(channel);
+        throw error;
+      });
+    entry = { listeners, ready };
+    // Registered synchronously, before awaiting, so a concurrent caller for the same user joins
+    // this entry instead of issuing a second SUBSCRIBE.
+    hub.channels.set(channel, entry);
+  }
+  entry.listeners.add(onMessage);
 
   try {
-    const subscriber = base.duplicate();
-    subscriber.on("error", (error) => {
-      logger.warn("notifications.subscriber_error", {
-        userId,
-        errorMessage: error instanceof Error ? error.message : "Unknown Redis error",
-      });
-    });
-    await subscriber.connect();
-
-    const channel = channelForUser(userId);
-    await subscriber.subscribe(channel, (message) => onMessage(message));
-
-    return {
-      unsubscribe: async () => {
-        try {
-          await subscriber.unsubscribe(channel);
-        } catch {
-          // Connection may already be closed by the time cleanup runs.
-        } finally {
-          try {
-            await subscriber.quit();
-          } catch {
-            // Already closed — nothing to do.
-          }
-        }
-      },
-    };
+    await entry.ready;
   } catch (error) {
+    entry.listeners.delete(onMessage);
     logger.warn("notifications.subscribe_failed", {
       userId,
       errorMessage: error instanceof Error ? error.message : "Unknown Redis error",
     });
     return null;
   }
+
+  const owned = entry;
+  return {
+    unsubscribe: async () => {
+      owned.listeners.delete(onMessage);
+      if (owned.listeners.size > 0 || hub.channels.get(channel) !== owned) return;
+      hub.channels.delete(channel);
+      try {
+        await hub.subscriber.unsubscribe(channel);
+      } catch {
+        // Connection may be closing; nothing to clean up.
+      }
+    },
+  };
+}
+
+/** For /api/health and tests: how many user channels this process is subscribed to. */
+export async function activeNotificationChannels(): Promise<number> {
+  const hub = globalThis.notificationHubPromise ? await globalThis.notificationHubPromise.catch(() => null) : null;
+  return hub?.channels.size ?? 0;
 }

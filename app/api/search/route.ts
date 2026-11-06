@@ -14,6 +14,14 @@ import { GlobalSearchQuerySchema, type GlobalSearchResult } from "@/types/search
 
 const GROUP_LIMIT = 5;
 
+/** `WHERE id IN (...)` returns rows in whatever order Postgres finds them, which throws away
+ * Meilisearch's relevance ranking. Put them back in the order Meilisearch returned. */
+function inSearchOrder<T extends { id: string }>(rows: T[], rankedIds: string[] | null): T[] {
+  if (!rankedIds) return rows;
+  const rank = new Map(rankedIds.map((id, index) => [id, index]));
+  return [...rows].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity));
+}
+
 async function searchAssets(orgId: string, q: string): Promise<GlobalSearchResult[]> {
   const meiliIds = await searchIds(assetSearchConfig, q, GROUP_LIMIT, orgId);
   const where: Prisma.AssetWhereInput = { orgId };
@@ -27,11 +35,14 @@ async function searchAssets(orgId: string, q: string): Promise<GlobalSearchResul
     ];
   }
 
-  const rows = await prisma.asset.findMany({
-    where,
-    take: GROUP_LIMIT,
-    select: { id: true, assetTag: true, name: true, status: true },
-  });
+  const rows = inSearchOrder(
+    await prisma.asset.findMany({
+      where,
+      take: GROUP_LIMIT,
+      select: { id: true, assetTag: true, name: true, status: true },
+    }),
+    meiliIds,
+  );
 
   return rows.map((row) => ({
     id: row.id,
@@ -53,11 +64,14 @@ async function searchUsers(orgId: string, q: string): Promise<GlobalSearchResult
     ];
   }
 
-  const rows = await prisma.user.findMany({
-    where,
-    take: GROUP_LIMIT,
-    select: { id: true, name: true, email: true },
-  });
+  const rows = inSearchOrder(
+    await prisma.user.findMany({
+      where,
+      take: GROUP_LIMIT,
+      select: { id: true, name: true, email: true },
+    }),
+    meiliIds,
+  );
 
   return rows.map((row) => ({
     id: row.id,

@@ -656,6 +656,8 @@ model Notification {
   // (hasUnreadNotificationForEntity) — a real hot-path lookup, not
   // speculative, since these sweeps run every few minutes.
   @@index([userId, type, relatedEntityId, isRead])
+  // SSE resume: "this user's notifications after id X" (ids are UUIDv7, so time-ordered).
+  @@index([userId, id])
 }
 
 model ActivityLog {

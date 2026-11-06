@@ -33,6 +33,12 @@ export function NotificationsPanel() {
   const [notifications, setNotifications] = React.useState<NotificationView[]>([]);
   const [nextCursor, setNextCursor] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  // undefined = first page not loaded yet; null = loaded but empty; string = newest loaded id.
+  const [streamSince, setStreamSince] = React.useState<string | null | undefined>(undefined);
+  const tabRef = React.useRef(tab);
+  React.useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
 
   const load = React.useCallback(async (currentTab: TabValue, cursor?: string) => {
     setIsLoading(true);
@@ -48,6 +54,9 @@ export function NotificationsPanel() {
       );
 
       setNotifications((current) => (cursor ? [...current, ...(json.data ?? [])] : (json.data ?? [])));
+      if (!cursor) {
+        setStreamSince((current) => (current === undefined ? (json.data?.[0]?.id ?? null) : current));
+      }
       setNextCursor(json.meta?.nextCursor ?? null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load notifications");
@@ -65,14 +74,21 @@ export function NotificationsPanel() {
     setTab(value as TabValue);
   };
 
-  // Live updates while the page is open, same stream the navbar bell uses.
+  // Live updates while the page is open. The stream starts only after the first page has
+  // loaded, and passes the newest id it already has as `since`, so the server replays anything
+  // created between that query and the subscription. Later reconnects resume via Last-Event-ID.
   React.useEffect(() => {
-    const source = new EventSource("/api/notifications/stream");
+    if (streamSince === undefined) return;
+    const url = streamSince
+      ? `/api/notifications/stream?since=${encodeURIComponent(streamSince)}`
+      : "/api/notifications/stream";
+    const source = new EventSource(url);
     source.onmessage = (event) => {
       try {
         const notification = JSON.parse(event.data) as NotificationView;
         setNotifications((current) => {
-          if (tab !== "all" && TYPE_TO_FILTER[notification.type] !== tab) return current;
+          if (current.some((item) => item.id === notification.id)) return current;
+          if (tabRef.current !== "all" && TYPE_TO_FILTER[notification.type] !== tabRef.current) return current;
           return [notification, ...current];
         });
       } catch {
@@ -80,8 +96,7 @@ export function NotificationsPanel() {
       }
     };
     return () => source.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [streamSince]);
 
   const markRead = async (id: string) => {
     const target = notifications.find((item) => item.id === id);
