@@ -40,3 +40,7 @@ next-env.d.ts
 
 .vscode/
 .remember/
+# Local AI-assistant config, not project documentation (see README.md)
+.claude/
+CLAUDE.md
+AGENTS.md
