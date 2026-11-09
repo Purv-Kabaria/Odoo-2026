@@ -1,15 +1,16 @@
 # AssetFlow
 
-![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white) ![Prisma 6](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white) ![PostgreSQL 15+](https://img.shields.io/badge/PostgreSQL-15+-4169E1?logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-cache--aside-DC382D?logo=redis&logoColor=white) ![Meilisearch](https://img.shields.io/badge/Meilisearch-typo--tolerant-FF5CAA?logo=meilisearch&logoColor=white) ![No CI](https://img.shields.io/badge/CI-none%20by%20design-lightgrey)
+![Next.js 16](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white) ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white) ![Prisma 6](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white) ![PostgreSQL 15+](https://img.shields.io/badge/PostgreSQL-15+-4169E1?logo=postgresql&logoColor=white) ![Redis](https://img.shields.io/badge/Redis-cache--aside-DC382D?logo=redis&logoColor=white) ![Meilisearch](https://img.shields.io/badge/Meilisearch-typo--tolerant-FF5CAA?logo=meilisearch&logoColor=white) [![ci](https://github.com/Purv-Kabaria/Odoo-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Purv-Kabaria/Odoo-2026/actions/workflows/ci.yml)
 
 **AssetFlow** is an enterprise asset-management system: register and track physical assets (with QR-code lookup), allocate them individually or in bulk kits to employees or departments, resolve allocation conflicts through transfer requests, book shared resources on a conflict-free calendar with enforced check-in, run an AI-assisted maintenance workflow, audit inventory against expected holders, and report on utilization and spend — all behind real session auth and role-based access control.
 
-Built on Next.js 16, Prisma 6, and PostgreSQL, with Redis, Meilisearch, and S3-compatible object storage baked in as optional accelerators (never hard dependencies). There is intentionally no CI/CD, no test runner, no Husky, no lint-staged, and no commitlint — this project is optimized for fast local iteration: run the app, click through it, and use `pnpm lint`, `pnpm typecheck`, and `pnpm build` as your manual quality gate before committing.
+Built on Next.js 16, Prisma 6, and PostgreSQL, with Redis, Meilisearch, and S3-compatible object storage baked in as optional accelerators (never hard dependencies). CI runs `pnpm typecheck` and `pnpm lint` on every push. There is no automated test suite yet: it was built in a hackathon and checked by clicking through each workflow, so `pnpm build` and the demo script are the remaining manual gates.
 
 > **Demoing this?** See [`docs/demo-script.md`](./docs/demo-script.md) for a 6-minute, screen-recording-ready walkthrough of every screen and its edge cases.
 
 ## Table of contents
 
+- [Team and ownership](#team-and-ownership)
 - [Screens](#screens)
 - [Feature matrix — brief-mandated vs. team-added](#feature-matrix--brief-mandated-vs-team-added)
 - [Role & permission matrix](#role--permission-matrix)
@@ -25,6 +26,16 @@ Built on Next.js 16, Prisma 6, and PostgreSQL, with Redis, Meilisearch, and S3-c
 - [Project structure](#project-structure)
 - [Security model](#security-model)
 - [Manual quality gates](#manual-quality-gates)
+
+## Team and ownership
+
+Built by a team of three at the Odoo hackathon. Split by area, from `git blame`:
+
+| Area | Built by |
+| --- | --- |
+| Data model and migrations (20 Prisma models), auth and role checks (`lib/auth.ts`), Ctrl+K search (`app/api/search`, `components/layout/global-search.tsx`), Redis cache and pub/sub, the SSE stream with replay, the asset module | Purv Kabaria |
+| Notification service, bell and panel, CRON alert sweeps, asset kits, booking check-in, seed data | [smit153](https://github.com/smit153) |
+| User onboarding and invites, departments, QR scanner | [ritikreacts](https://github.com/ritikreacts) |
 
 ## Screens
 
@@ -506,7 +517,7 @@ See `AGENTS.md` §6 for the full model.
 
 ## Manual quality gates
 
-There are no automated tests or CI in this project. Before committing meaningful changes, run:
+CI runs lint and typecheck on every push. There are no automated tests yet, so before committing meaningful changes, also run:
 
 ```bash
 pnpm lint
